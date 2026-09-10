@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { Bot } from 'grammy';
 import { classifyMessage } from './classifier.mjs';
+import { addLoop } from './store.mjs';
 
 const token = process.env.BOT_TOKEN ?? process.env.TELEGRAM_BOT_TOKEN;
 if (!token) throw new Error('BOT_TOKEN is missing in .env');
@@ -31,6 +32,7 @@ bot.on('message', async (ctx) => {
     receivedAt: new Date(message.date * 1000).toISOString()
   });
 
+  await addLoop(loop);
   console.log(JSON.stringify({ event:'open_loop_created', loop }, null, 2));
   const confidence = Math.round(loop.confidence * 100);
   await ctx.reply(`${labels[loop.type]}\n\n${loop.title}\n\nОт: ${author}\nУверенность: ${confidence}%\n\n«${text}»`);
