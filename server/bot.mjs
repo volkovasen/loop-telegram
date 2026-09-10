@@ -48,5 +48,5 @@ bot.on('message', async (ctx) => {
 });
 
 bot.catch((error) => console.error('Bot error:', error.error));
-console.log(`LOOP bot is listening… classifier=${process.env.OPENAI_API_KEY ? 'AI' : 'fallback'}`);
+console.log(`LOOP bot is listening… classifier=${process.env.GEMINI_API_KEY ? 'Gemini AI' : 'fallback'}`);
 bot.start();
