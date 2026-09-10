@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { Bot } from 'grammy';
 import { classifyMessage } from './classifier.mjs';
+import { classifyWithAI } from './ai-classifier.mjs';
 import { addLoop } from './store.mjs';
 
 const token = process.env.BOT_TOKEN ?? process.env.TELEGRAM_BOT_TOKEN;
@@ -27,17 +28,25 @@ bot.on('message', async (ctx) => {
   if (!message.forward_origin) return ctx.reply('Для первого теста перешли мне чужое сообщение.');
 
   const author = originName(message) ?? 'Неизвестный отправитель';
-  const loop = classifyMessage({
-    text, author, messageId: message.message_id, chatId: message.chat.id,
-    receivedAt: new Date(message.date * 1000).toISOString()
-  });
+  const input = { text, author, messageId: message.message_id, chatId: message.chat.id, receivedAt: new Date(message.date * 1000).toISOString() };
 
-  await addLoop(loop);
-  console.log(JSON.stringify({ event:'open_loop_created', loop }, null, 2));
-  const confidence = Math.round(loop.confidence * 100);
-  await ctx.reply(`${labels[loop.type]}\n\n${loop.title}\n\nОт: ${author}\nУверенность: ${confidence}%\n\n«${text}»`);
+  let loops;
+  try {
+    loops = await classifyWithAI(input);
+  } catch (error) {
+    console.error('AI classifier failed, using fallback:', error);
+  }
+  if (!loops) loops = [classifyMessage(input)];
+
+  if (loops.length === 0) return ctx.reply('Похоже, здесь нет незакрытого дела. Ничего не добавил.');
+
+  for (const loop of loops) await addLoop(loop);
+  console.log(JSON.stringify({ event:'open_loops_created', loops }, null, 2));
+
+  const summary = loops.map((loop) => `${labels[loop.type]}\n${loop.title} · ${Math.round(loop.confidence * 100)}%`).join('\n\n');
+  await ctx.reply(`${loops.length > 1 ? `Нашёл ${loops.length} вещи` : 'Нашёл'}:\n\n${summary}\n\nОт: ${author}\n«${text}»`);
 });
 
 bot.catch((error) => console.error('Bot error:', error.error));
-console.log('LOOP bot is listening…');
+console.log(`LOOP bot is listening… classifier=${process.env.OPENAI_API_KEY ? 'AI' : 'fallback'}`);
 bot.start();
