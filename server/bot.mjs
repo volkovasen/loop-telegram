@@ -8,21 +8,28 @@ const token = process.env.BOT_TOKEN ?? process.env.TELEGRAM_BOT_TOKEN;
 if (!token) throw new Error('BOT_TOKEN is missing in .env');
 const bot = new Bot(token);
 
+function cleanName(value) {
+  const name = value?.trim();
+  return name || undefined;
+}
+
 function originPerson(message) {
   const origin = message.forward_origin;
   if (!origin) return undefined;
 
   if (origin.type === 'user') {
+    const telegramName = cleanName([origin.sender_user.first_name, origin.sender_user.last_name].filter(Boolean).join(' '));
     return {
       telegramUserId: origin.sender_user.id,
-      name: [origin.sender_user.first_name, origin.sender_user.last_name].filter(Boolean).join(' '),
-      username: origin.sender_user.username
+      name: telegramName ?? origin.sender_user.username ?? 'Контакт из Telegram',
+      username: origin.sender_user.username,
+      nameSource: 'telegram'
     };
   }
 
-  if (origin.type === 'hidden_user') return { name: origin.sender_user_name };
-  if (origin.type === 'chat') return { name: origin.sender_chat.title, username: origin.sender_chat.username };
-  if (origin.type === 'channel') return { name: origin.chat.title, username: origin.chat.username };
+  if (origin.type === 'hidden_user') return { name: cleanName(origin.sender_user_name) ?? 'Контакт из Telegram', nameSource: 'telegram' };
+  if (origin.type === 'chat') return { name: origin.sender_chat.title, username: origin.sender_chat.username, nameSource: 'telegram' };
+  if (origin.type === 'channel') return { name: origin.chat.title, username: origin.chat.username, nameSource: 'telegram' };
 }
 
 const labels = {
@@ -42,7 +49,7 @@ bot.on('message', async (ctx) => {
   if (!message.forward_origin) return ctx.reply('Для первого теста перешли мне чужое сообщение.');
 
   const person = originPerson(message);
-  const author = person?.name ?? 'Неизвестный отправитель';
+  const author = person?.name ?? 'Контакт из Telegram';
   const input = {
     text,
     author,
