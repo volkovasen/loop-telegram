@@ -7,7 +7,7 @@ export interface OpenLoop {
   type: LoopType;
   status: LoopStatus;
   title: string;
-  person?: { telegramUserId?: number; name: string; username?: string };
+  person?: { telegramUserId?: number; name: string; username?: string; nameSource?: 'contact' | 'telegram' };
   dueAt?: string;
   space?: LoopSpace;
   memoryCategory?: string;
