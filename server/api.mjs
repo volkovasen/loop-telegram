@@ -1,5 +1,7 @@
+import 'dotenv/config';
 import http from 'node:http';
 import { readLoops, updateLoop } from './store.mjs';
+import { searchMemory } from './memory-search.mjs';
 
 const port = Number(process.env.PORT ?? 8787);
 
@@ -18,6 +20,17 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && req.url === '/loops') {
     return send(res, 200, await readLoops());
+  }
+
+  if (req.method === 'GET' && req.url?.startsWith('/memory/search')) {
+    const url = new URL(req.url, `http://${req.headers.host ?? 'localhost'}`);
+    const query = url.searchParams.get('q')?.trim() ?? '';
+    try {
+      return send(res, 200, await searchMemory(query, await readLoops()));
+    } catch (error) {
+      console.error('Memory search failed:', error);
+      return send(res, 500, { error: 'Memory search failed' });
+    }
   }
 
   const match = req.url?.match(/^\/loops\/([^/]+)$/);
