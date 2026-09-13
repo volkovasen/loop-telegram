@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { Bot, InlineKeyboard } from 'grammy';
 import { classifyMessage } from './classifier.mjs';
 import { classifyWithAI } from './ai-classifier.mjs';
-import { addLoop } from './store.mjs';
+import { addLoop, readLoops, updateLoop } from './store.mjs';
 import { transcribeTelegramFile } from './transcribe.mjs';
 import { allowRequest } from './rate-limit.mjs';
 
@@ -10,6 +10,7 @@ const token = process.env.BOT_TOKEN ?? process.env.TELEGRAM_BOT_TOKEN;
 if (!token) throw new Error('BOT_TOKEN is missing in .env');
 const bot = new Bot(token);
 const webAppUrl = process.env.WEB_APP_URL?.trim();
+const reminderGraceMs = Number(process.env.REMINDER_GRACE_MINUTES ?? 60) * 60_000;
 
 function cleanName(value) { const name = value?.trim(); return name || undefined; }
 function originPerson(message) {
@@ -57,6 +58,23 @@ async function processMeaning(ctx, text, mediaKind) {
   await ctx.reply(`${saved.length > 1 ? `Нашёл ${saved.length} вещи` : 'Нашёл'}:\n\n${summary}\n\nОт: ${author}${mediaKind ? `\n\n🎙 «${text}»` : `\n«${text}»`}`, { reply_markup: appKeyboard() });
 }
 
+async function sendDueReminders() {
+  const now = Date.now();
+  const loops = await readLoops();
+  for (const loop of loops) {
+    if (!loop.ownerId || !loop.dueAt || loop.type === 'saved' || loop.status === 'done' || loop.status === 'dismissed' || loop.remindedAt) continue;
+    const due = new Date(loop.dueAt).getTime();
+    if (!Number.isFinite(due) || due > now || due < now - reminderGraceMs) continue;
+    try {
+      const prefix = loop.status === 'snoozed' ? '⏰ Пора вернуть в внимание' : loop.type === 'event' ? '📅 Сейчас' : '⏰ Напоминание';
+      await bot.api.sendMessage(loop.ownerId, `${prefix}\n\n${loop.title}${loop.person?.name ? `\n${loop.person.name}` : ''}`, { reply_markup: appKeyboard() });
+      await updateLoop(loop.id, { remindedAt: new Date().toISOString(), status: loop.status === 'snoozed' ? 'open' : loop.status }, String(loop.ownerId));
+    } catch (error) {
+      console.error('Reminder failed:', loop.id, error);
+    }
+  }
+}
+
 bot.command('start', (ctx) => ctx.reply('LOOP включён. Перешли сюда сообщение, голосовое или кружок, который нельзя потерять. Я превращу его в действие, ожидание, событие или память.', { reply_markup: appKeyboard() }));
 bot.command('app', (ctx) => webAppUrl ? ctx.reply('Твоя память и незакрытые хвосты здесь:', { reply_markup: appKeyboard() }) : ctx.reply('Mini App пока не подключён на сервере.'));
 bot.command('help', (ctx) => ctx.reply('Перешли мне чужое сообщение, голосовое или кружок. LOOP найдёт, что требует внимания, и сохранит источник. Команда /app открывает приложение.', { reply_markup: appKeyboard() }));
@@ -90,5 +108,6 @@ bot.on('message', async (ctx) => {
 bot.catch((error) => console.error('Bot error:', error.error));
 await bot.api.setMyCommands([{ command: 'app', description: 'Открыть LOOP' }, { command: 'help', description: 'Как пользоваться' }]).catch((error) => console.error('Failed to set commands:', error));
 if (webAppUrl) await bot.api.setChatMenuButton({ menu_button: { type: 'web_app', text: 'Открыть LOOP', web_app: { url: webAppUrl } } }).catch((error) => console.error('Failed to set menu button:', error));
+setInterval(() => sendDueReminders().catch((error) => console.error('Reminder sweep failed:', error)), 30_000).unref?.();
 console.log(`LOOP bot is listening… classifier=${process.env.GROQ_API_KEY ? 'Groq AI + Whisper' : 'fallback'}${webAppUrl ? ' · Mini App linked' : ''}`);
 bot.start();
