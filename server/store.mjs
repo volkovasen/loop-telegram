@@ -57,6 +57,7 @@ export async function updateLoop(id, patch, ownerId) {
     const safePatch = { ...patch };
     delete safePatch.id;
     delete safePatch.ownerId;
+    if (safePatch.dueAt && safePatch.dueAt !== loops[index].dueAt) safePatch.remindedAt = null;
     loops[index] = { ...loops[index], ...safePatch, updatedAt: new Date().toISOString() };
     await writeAll(loops);
     return loops[index];
