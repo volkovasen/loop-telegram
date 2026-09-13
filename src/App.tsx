@@ -4,7 +4,7 @@ import type { LoopSpace, OpenLoop } from './types/open-loop';
 
 const API_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:8787' : '');
 const telegram = (window as typeof window & { Telegram?: { WebApp?: { initData?: string; ready?: () => void; expand?: () => void } } }).Telegram?.WebApp;
-const authHeaders = () => telegram?.initData ? { 'X-Telegram-Init-Data': telegram.initData } : {};
+function authHeaders(): Record<string, string> { return telegram?.initData ? { 'X-Telegram-Init-Data': telegram.initData } : {}; }
 type Tab = 'today' | 'people' | 'memory';
 type SpaceFilter = 'Все' | LoopSpace;
 const meta = { reply:{icon:'↩',label:'Ждёт ответа'}, todo:{icon:'✓',label:'Нужно сделать'}, waiting:{icon:'←',label:'Ждёшь'}, event:{icon:'◷',label:'Событие'}, saved:{icon:'◇',label:'В памяти'} };
