@@ -29,7 +29,7 @@ function enqueueWrite(task) {
 
 export async function readLoops(ownerId) {
   const loops = await readAll();
-  if (!ownerId) return loops;
+  if (!ownerId || ownerId === '*') return loops;
   return loops.filter((loop) => String(loop.ownerId ?? 'local-dev') === String(ownerId));
 }
 
@@ -52,7 +52,7 @@ export async function addLoop(loop) {
 export async function updateLoop(id, patch, ownerId) {
   return enqueueWrite(async () => {
     const loops = await readAll();
-    const index = loops.findIndex((loop) => loop.id === id && (!ownerId || String(loop.ownerId ?? 'local-dev') === String(ownerId)));
+    const index = loops.findIndex((loop) => loop.id === id && (!ownerId || ownerId === '*' || String(loop.ownerId ?? 'local-dev') === String(ownerId)));
     if (index === -1) return null;
     const safePatch = { ...patch };
     delete safePatch.id;
