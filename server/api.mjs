@@ -5,6 +5,7 @@ import path from 'node:path';
 import { readLoops, updateLoop } from './store.mjs';
 import { searchMemory } from './memory-search.mjs';
 import { resolveRequestUser } from './telegram-auth.mjs';
+import { allowRequest } from './rate-limit.mjs';
 
 const port = Number(process.env.PORT ?? 8787);
 const allowedOrigin = process.env.CORS_ORIGIN || '*';
@@ -52,6 +53,10 @@ function auth(req, res) {
     send(res, 401, { error: 'Telegram authentication required' });
     return null;
   }
+  if (!allowRequest(`api:${user.id}`, { limit: Number(process.env.API_RATE_LIMIT ?? 120), windowMs: 60_000 })) {
+    send(res, 429, { error: 'Too many requests' });
+    return null;
+  }
   return user;
 }
 
@@ -73,8 +78,9 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/loops') return send(res, 200, await readLoops(user.id));
 
     if (req.method === 'GET' && req.url?.startsWith('/memory/search')) {
+      if (!allowRequest(`search:${user.id}`, { limit: Number(process.env.SEARCH_RATE_LIMIT ?? 30), windowMs: 60_000 })) return send(res, 429, { error: 'Too many searches' });
       const url = new URL(req.url, `http://${req.headers.host ?? 'localhost'}`);
-      const query = url.searchParams.get('q')?.trim() ?? '';
+      const query = url.searchParams.get('q')?.trim().slice(0, 300) ?? '';
       return send(res, 200, await searchMemory(query, await readLoops(user.id)));
     }
 
