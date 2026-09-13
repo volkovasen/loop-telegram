@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const dataDir = path.resolve('server/data');
+const dataDir = path.resolve(process.env.DATA_DIR || 'server/data');
 const dataFile = path.join(dataDir, 'loops.json');
 let writeChain = Promise.resolve();
 
