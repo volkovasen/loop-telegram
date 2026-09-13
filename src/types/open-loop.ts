@@ -4,6 +4,7 @@ export type LoopSpace = 'Дом' | 'Работа' | 'Личное';
 
 export interface OpenLoop {
   id: string;
+  ownerId?: string;
   type: LoopType;
   status: LoopStatus;
   title: string;
@@ -22,5 +23,6 @@ export interface OpenLoop {
     transcript?: string;
   };
   createdAt: string;
+  updatedAt?: string;
   completedAt?: string;
 }
