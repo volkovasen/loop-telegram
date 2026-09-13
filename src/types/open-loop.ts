@@ -18,6 +18,8 @@ export interface OpenLoop {
     text?: string;
     receivedAt: string;
     authorName?: string;
+    mediaKind?: 'voice' | 'video_note' | 'audio';
+    transcript?: string;
   };
   createdAt: string;
   completedAt?: string;
