@@ -37,7 +37,10 @@ function mediaInfo(message) {
 
 async function processMeaning(ctx, text, mediaKind) {
   const message = ctx.message;
-  if (!message.forward_origin) return ctx.reply('Для первого теста перешли мне чужое сообщение или голосовое.');
+  const ownerId = String(ctx.from?.id ?? '');
+  if (!ownerId) return ctx.reply('Не смог определить пользователя Telegram.');
+  if (!message.forward_origin) return ctx.reply('Перешли мне чужое сообщение, голосовое или кружок, и я разберу его по смыслу.');
+
   const person = originPerson(message);
   const author = person?.name ?? 'Контакт из Telegram';
   const input = { text, author, person, messageId: message.message_id, chatId: message.chat.id, receivedAt: new Date(message.date * 1000).toISOString() };
@@ -48,18 +51,25 @@ async function processMeaning(ctx, text, mediaKind) {
     const fallback = classifyMessage(input);
     loops = [{ ...fallback, person, space: 'Личное' }];
   }
-  if (loops.length === 0) return ctx.reply(`Разобрал${mediaKind ? ' голосовое' : ' сообщение'}, но незакрытых дел или полезной памяти не нашёл.${mediaKind ? `\n\nРасшифровка: «${text}»` : ''}`);
+  if (loops.length === 0) return ctx.reply(`Разобрал${mediaKind ? ' голосовое' : ' сообщение'}, но ничего, что требует внимания или стоит сохранить, не нашёл.${mediaKind ? `\n\nРасшифровка: «${text}»` : ''}`);
 
+  const saved = [];
   for (const loop of loops) {
-    loop.source = { ...loop.source, mediaKind, transcript: mediaKind ? text : undefined };
-    await addLoop(loop);
+    const withOwner = {
+      ...loop,
+      ownerId,
+      source: { ...loop.source, mediaKind, transcript: mediaKind ? text : undefined }
+    };
+    saved.push(await addLoop(withOwner));
   }
-  console.log(JSON.stringify({ event: 'open_loops_created', mediaKind, loops }, null, 2));
-  const summary = loops.map((loop) => `${labels[loop.type]}\n${loop.title}${loop.space ? ` · ${loop.space}` : ''}${loop.dueAt ? `\n⏰ ${new Date(loop.dueAt).toLocaleString('ru-RU')}` : ''}`).join('\n\n');
-  await ctx.reply(`${loops.length > 1 ? `Нашёл ${loops.length} вещи` : 'Нашёл'}:\n\n${summary}\n\nОт: ${author}${mediaKind ? `\n\n🎙 «${text}»` : `\n«${text}»`}`);
+
+  console.log(JSON.stringify({ event: 'open_loops_created', ownerId, mediaKind, loops: saved.map(({ source, ...loop }) => ({ ...loop, sourceType: source?.mediaKind ?? 'text' })) }, null, 2));
+  const summary = saved.map((loop) => `${labels[loop.type]}\n${loop.title}${loop.space ? ` · ${loop.space}` : ''}${loop.dueAt ? `\n⏰ ${new Date(loop.dueAt).toLocaleString('ru-RU')}` : ''}`).join('\n\n');
+  await ctx.reply(`${saved.length > 1 ? `Нашёл ${saved.length} вещи` : 'Нашёл'}:\n\n${summary}\n\nОт: ${author}${mediaKind ? `\n\n🎙 «${text}»` : `\n«${text}»`}`);
 }
 
-bot.command('start', (ctx) => ctx.reply('LOOP включён. Перешли сообщение или голосовое, которое нельзя потерять.'));
+bot.command('start', (ctx) => ctx.reply('LOOP включён. Перешли сюда сообщение, голосовое или кружок, который нельзя потерять. Я превращу его в действие, ожидание, событие или память.'));
+bot.command('help', (ctx) => ctx.reply('Перешли мне чужое сообщение, голосовое или кружок. LOOP найдёт, что требует внимания, и сохранит источник. Открой Mini App, чтобы увидеть Сегодня, Людей и Память.'));
 
 bot.on('message', async (ctx) => {
   const message = ctx.message;
@@ -79,7 +89,7 @@ bot.on('message', async (ctx) => {
   }
 
   const text = message.text ?? message.caption;
-  if (!text) return ctx.reply('Сейчас понимаю текст, голосовые, аудио и кружки. Файлы без текста пока просто не сохраняю.');
+  if (!text) return ctx.reply('Сейчас понимаю текст, голосовые, аудио и кружки.');
   return processMeaning(ctx, text);
 });
 
