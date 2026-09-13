@@ -12,7 +12,11 @@ const bot = new Bot(token);
 const webAppUrl = process.env.WEB_APP_URL?.trim();
 const reminderGraceMs = Number(process.env.REMINDER_GRACE_MINUTES ?? 60) * 60_000;
 
-function cleanName(value) { const name = value?.trim(); return name || undefined; }
+function cleanName(value) {
+  const name = value?.trim();
+  if (!name || !/[\p{L}\p{N}]/u.test(name)) return undefined;
+  return name;
+}
 function originPerson(message) {
   const origin = message.forward_origin;
   if (!origin) return undefined;
@@ -21,8 +25,8 @@ function originPerson(message) {
     return { telegramUserId: origin.sender_user.id, name: telegramName ?? origin.sender_user.username ?? 'Контакт из Telegram', username: origin.sender_user.username, nameSource: 'telegram' };
   }
   if (origin.type === 'hidden_user') return { name: cleanName(origin.sender_user_name) ?? 'Контакт из Telegram', nameSource: 'telegram' };
-  if (origin.type === 'chat') return { name: origin.sender_chat.title, username: origin.sender_chat.username, nameSource: 'telegram' };
-  if (origin.type === 'channel') return { name: origin.chat.title, username: origin.chat.username, nameSource: 'telegram' };
+  if (origin.type === 'chat') return { name: cleanName(origin.sender_chat.title) ?? origin.sender_chat.username ?? 'Чат Telegram', username: origin.sender_chat.username, nameSource: 'telegram' };
+  if (origin.type === 'channel') return { name: cleanName(origin.chat.title) ?? origin.chat.username ?? 'Канал Telegram', username: origin.chat.username, nameSource: 'telegram' };
 }
 
 const labels = { reply: '🔴 Нужно ответить', todo: '✅ Нужно сделать', waiting: '🟡 Ждёшь', event: '📅 Событие', saved: '🔖 В память' };
