@@ -25,4 +25,5 @@ export interface OpenLoop {
   createdAt: string;
   updatedAt?: string;
   completedAt?: string;
+  remindedAt?: string;
 }
