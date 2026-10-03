@@ -5,113 +5,18 @@ import { classifyWithAI } from './ai-classifier.mjs';
 import { addLoop, readLoops, updateLoop } from './store.mjs';
 import { transcribeTelegramFile } from './transcribe.mjs';
 import { allowRequest } from './rate-limit.mjs';
-
-const token = process.env.BOT_TOKEN ?? process.env.TELEGRAM_BOT_TOKEN;
-if (!token) throw new Error('BOT_TOKEN is missing in .env');
-const bot = new Bot(token);
-const webAppUrl = process.env.WEB_APP_URL?.trim();
-const reminderGraceMs = Number(process.env.REMINDER_GRACE_MINUTES ?? 60) * 60_000;
-
-function cleanName(value) {
-  const name = value?.trim();
-  if (!name || !/[\p{L}\p{N}]/u.test(name)) return undefined;
-  return name;
-}
-function originPerson(message) {
-  const origin = message.forward_origin;
-  if (!origin) return undefined;
-  if (origin.type === 'user') {
-    const telegramName = cleanName([origin.sender_user.first_name, origin.sender_user.last_name].filter(Boolean).join(' '));
-    return { telegramUserId: origin.sender_user.id, name: telegramName ?? origin.sender_user.username ?? 'Контакт из Telegram', username: origin.sender_user.username, nameSource: 'telegram' };
-  }
-  if (origin.type === 'hidden_user') return { name: cleanName(origin.sender_user_name) ?? 'Контакт из Telegram', nameSource: 'telegram' };
-  if (origin.type === 'chat') return { name: cleanName(origin.sender_chat.title) ?? origin.sender_chat.username ?? 'Чат Telegram', username: origin.sender_chat.username, nameSource: 'telegram' };
-  if (origin.type === 'channel') return { name: cleanName(origin.chat.title) ?? origin.chat.username ?? 'Канал Telegram', username: origin.chat.username, nameSource: 'telegram' };
-}
-
-const labels = { reply: '🔴 Нужно ответить', todo: '✅ Нужно сделать', waiting: '🟡 Ждёшь', event: '📅 Событие', saved: '🔖 В память' };
-function mediaInfo(message) {
-  if (message.voice) return { fileId: message.voice.file_id, mimeType: message.voice.mime_type ?? 'audio/ogg', fileName: 'voice.ogg', kind: 'voice', duration: message.voice.duration };
-  if (message.video_note) return { fileId: message.video_note.file_id, mimeType: 'video/mp4', fileName: 'video-note.mp4', kind: 'video_note', duration: message.video_note.duration };
-  if (message.audio) return { fileId: message.audio.file_id, mimeType: message.audio.mime_type ?? 'audio/mpeg', fileName: message.audio.file_name ?? 'audio.mp3', kind: 'audio', duration: message.audio.duration };
-  return undefined;
-}
-function appKeyboard() { return webAppUrl ? new InlineKeyboard().webApp('Открыть LOOP', webAppUrl) : undefined; }
-
-async function processMeaning(ctx, text, mediaKind) {
-  const message = ctx.message;
-  const ownerId = String(ctx.from?.id ?? '');
-  if (!ownerId) return ctx.reply('Не смог определить пользователя Telegram.');
-  if (!message.forward_origin) return ctx.reply('Перешли мне чужое сообщение, голосовое или кружок, и я разберу его по смыслу.');
-
-  const person = originPerson(message);
-  const author = person?.name ?? 'Контакт из Telegram';
-  const input = { text, author, person, messageId: message.message_id, chatId: message.chat.id, receivedAt: new Date(message.date * 1000).toISOString() };
-  let loops;
-  try { loops = await classifyWithAI(input); } catch (error) { console.error('AI classifier failed, using fallback:', error); }
-  if (!loops) { const fallback = classifyMessage(input); loops = [{ ...fallback, person, space: 'Личное' }]; }
-  if (loops.length === 0) return ctx.reply(`Разобрал${mediaKind ? ' голосовое' : ' сообщение'}, но ничего, что требует внимания или стоит сохранить, не нашёл.${mediaKind ? `\n\nРасшифровка: «${text}»` : ''}`);
-
-  const saved = [];
-  for (const loop of loops) {
-    const withOwner = { ...loop, ownerId, source: { ...loop.source, mediaKind, transcript: mediaKind ? text : undefined } };
-    saved.push(await addLoop(withOwner));
-  }
-  console.log(JSON.stringify({ event: 'open_loops_created', ownerId, mediaKind, count: saved.length }, null, 2));
-  const summary = saved.map((loop) => `${labels[loop.type]}\n${loop.title}${loop.space ? ` · ${loop.space}` : ''}${loop.dueAt ? `\n⏰ ${new Date(loop.dueAt).toLocaleString('ru-RU')}` : ''}`).join('\n\n');
-  await ctx.reply(`${saved.length > 1 ? `Нашёл ${saved.length} вещи` : 'Нашёл'}:\n\n${summary}\n\nОт: ${author}${mediaKind ? `\n\n🎙 «${text}»` : `\n«${text}»`}`, { reply_markup: appKeyboard() });
-}
-
-async function sendDueReminders() {
-  const now = Date.now();
-  const loops = await readLoops();
-  for (const loop of loops) {
-    if (!loop.ownerId || !loop.dueAt || loop.type === 'saved' || loop.status === 'done' || loop.status === 'dismissed' || loop.remindedAt) continue;
-    const due = new Date(loop.dueAt).getTime();
-    if (!Number.isFinite(due) || due > now || due < now - reminderGraceMs) continue;
-    try {
-      const prefix = loop.status === 'snoozed' ? '⏰ Пора вернуть в внимание' : loop.type === 'event' ? '📅 Сейчас' : '⏰ Напоминание';
-      await bot.api.sendMessage(loop.ownerId, `${prefix}\n\n${loop.title}${loop.person?.name ? `\n${loop.person.name}` : ''}`, { reply_markup: appKeyboard() });
-      await updateLoop(loop.id, { remindedAt: new Date().toISOString(), status: loop.status === 'snoozed' ? 'open' : loop.status }, String(loop.ownerId));
-    } catch (error) {
-      console.error('Reminder failed:', loop.id, error);
-    }
-  }
-}
-
-bot.command('start', (ctx) => ctx.reply('LOOP включён. Перешли сюда сообщение, голосовое или кружок, который нельзя потерять. Я превращу его в действие, ожидание, событие или память.', { reply_markup: appKeyboard() }));
-bot.command('app', (ctx) => webAppUrl ? ctx.reply('Твоя память и незакрытые хвосты здесь:', { reply_markup: appKeyboard() }) : ctx.reply('Mini App пока не подключён на сервере.'));
-bot.command('help', (ctx) => ctx.reply('Перешли мне чужое сообщение, голосовое или кружок. LOOP найдёт, что требует внимания, и сохранит источник. Команда /app открывает приложение.', { reply_markup: appKeyboard() }));
-
-bot.on('message', async (ctx) => {
-  const userId = String(ctx.from?.id ?? 'anonymous');
-  if (!allowRequest(`bot:${userId}`, { limit: Number(process.env.BOT_RATE_LIMIT ?? 20), windowMs: 60_000 })) return ctx.reply('Слишком много сообщений подряд. Подожди минуту и продолжай.');
-
-  const message = ctx.message;
-  const media = mediaInfo(message);
-  if (media) {
-    if (!message.forward_origin) return ctx.reply('Перешли мне чужое голосовое или кружок, и я разберу его по смыслу.');
-    if ((media.duration ?? 0) > Number(process.env.MAX_AUDIO_SECONDS ?? 600)) return ctx.reply('Это аудио слишком длинное. Сейчас разбираю записи до 10 минут.');
-    const status = await ctx.reply('🎙 Слушаю и разбираю по смыслу…');
-    try {
-      const transcript = await transcribeTelegramFile({ bot, ...media });
-      await ctx.api.deleteMessage(ctx.chat.id, status.message_id).catch(() => {});
-      return processMeaning(ctx, transcript, media.kind);
-    } catch (error) {
-      console.error('Transcription failed:', error);
-      await ctx.api.deleteMessage(ctx.chat.id, status.message_id).catch(() => {});
-      return ctx.reply('Не смог разобрать аудио. Попробуй переслать ещё раз.');
-    }
-  }
-
-  const text = message.text ?? message.caption;
-  if (!text) return ctx.reply('Сейчас понимаю текст, голосовые, аудио и кружки.');
-  return processMeaning(ctx, text);
-});
-
-bot.catch((error) => console.error('Bot error:', error.error));
-await bot.api.setMyCommands([{ command: 'app', description: 'Открыть LOOP' }, { command: 'help', description: 'Как пользоваться' }]).catch((error) => console.error('Failed to set commands:', error));
-if (webAppUrl) await bot.api.setChatMenuButton({ menu_button: { type: 'web_app', text: 'Открыть LOOP', web_app: { url: webAppUrl } } }).catch((error) => console.error('Failed to set menu button:', error));
-setInterval(() => sendDueReminders().catch((error) => console.error('Reminder sweep failed:', error)), 30_000).unref?.();
-console.log(`LOOP bot is listening… classifier=${process.env.GROQ_API_KEY ? 'Groq AI + Whisper' : 'fallback'}${webAppUrl ? ' · Mini App linked' : ''}`);
-bot.start();
+const token=process.env.BOT_TOKEN??process.env.TELEGRAM_BOT_TOKEN;if(!token)throw new Error('BOT_TOKEN is missing in .env');
+const bot=new Bot(token),webAppUrl=process.env.WEB_APP_URL?.trim(),reminderGraceMs=Number(process.env.REMINDER_GRACE_MINUTES??60)*60000;
+function cleanName(v){const n=v?.trim();return n&&/[\p{L}\p{N}]/u.test(n)?n:undefined}
+function originPerson(m){const o=m.forward_origin;if(!o)return;if(o.type==='user'){const n=cleanName([o.sender_user.first_name,o.sender_user.last_name].filter(Boolean).join(' '));return{telegramUserId:o.sender_user.id,name:n??o.sender_user.username??'Контакт из Telegram',username:o.sender_user.username,nameSource:'telegram'}}if(o.type==='hidden_user')return{name:cleanName(o.sender_user_name)??'Контакт из Telegram',nameSource:'telegram'};if(o.type==='chat')return{name:cleanName(o.sender_chat.title)??o.sender_chat.username??'Чат Telegram',username:o.sender_chat.username,nameSource:'telegram'};if(o.type==='channel')return{name:cleanName(o.chat.title)??o.chat.username??'Канал Telegram',username:o.chat.username,nameSource:'telegram'}}
+const labels={reply:'🔴 Нужно ответить',todo:'✅ Нужно сделать',waiting:'🟡 Ждёшь',event:'📅 Событие',saved:'🔖 В память'};
+function mediaInfo(m){if(m.voice)return{fileId:m.voice.file_id,mimeType:m.voice.mime_type??'audio/ogg',fileName:'voice.ogg',kind:'voice',duration:m.voice.duration};if(m.video_note)return{fileId:m.video_note.file_id,mimeType:'video/mp4',fileName:'video-note.mp4',kind:'video_note',duration:m.video_note.duration};if(m.audio)return{fileId:m.audio.file_id,mimeType:m.audio.mime_type??'audio/mpeg',fileName:m.audio.file_name??'audio.mp3',kind:'audio',duration:m.audio.duration}}
+function appKeyboard(){return webAppUrl?new InlineKeyboard().webApp('Открыть LOOP',webAppUrl):undefined}
+async function applyOperations(ownerId,ops,mediaKind,text){const changed=[];for(const op of ops){if(op.action==='create'){const l={...op.loop,ownerId,source:{...op.loop.source,mediaKind,transcript:mediaKind?text:undefined}};changed.push({action:'create',loop:await addLoop(l)})}else if(op.action==='update'){const p={type:op.loop.type,title:op.loop.title,status:op.loop.status,dueAt:op.loop.dueAt??null,space:op.loop.space,memoryCategory:op.loop.memoryCategory,remindedAt:null};changed.push({action:'update',loop:await updateLoop(op.targetId,p,ownerId)})}else if(op.action==='complete')changed.push({action:'complete',loop:await updateLoop(op.targetId,{status:'done',completedAt:new Date().toISOString()},ownerId)});else if(op.action==='cancel')changed.push({action:'cancel',loop:await updateLoop(op.targetId,{status:'dismissed'},ownerId)})}return changed.filter(x=>x.loop)}
+async function processMeaning(ctx,text,mediaKind){const m=ctx.message,ownerId=String(ctx.from?.id??'');if(!ownerId)return ctx.reply('Не смог определить пользователя Telegram.');if(!m.forward_origin)return ctx.reply('Перешли сюда чужое сообщение, голосовое или кружок. LOOP разберёт, что из этого нельзя потерять.');const person=originPerson(m),author=person?.name??'Контакт из Telegram',input={text,author,person,messageId:m.message_id,chatId:m.chat.id,receivedAt:new Date(m.date*1000).toISOString(),openLoops:await readLoops(ownerId),perspective:'other'};let ops;try{ops=await classifyWithAI(input)}catch(e){console.error('AI classifier failed:',e)}if(!ops){const f=classifyMessage(input);ops=[{action:'create',loop:{...f,person,space:'Личное'}}]}const changed=await applyOperations(ownerId,ops,mediaKind,text);if(!changed.length)return ctx.reply(`Разобрал${mediaKind?' запись':' сообщение'}. Нового хвоста здесь не вижу.`,{reply_markup:appKeyboard()});const lines=changed.map(({action,loop})=>action==='cancel'?`✕ Снял: ${loop.title}`:action==='complete'?`✓ Закрыл: ${loop.title}`:action==='update'?`↻ Обновил: ${loop.title}${loop.dueAt?`\n⏰ ${new Date(loop.dueAt).toLocaleString('ru-RU')}`:''}`:`${labels[loop.type]}\n${loop.title}${loop.space?` · ${loop.space}`:''}${loop.dueAt?`\n⏰ ${new Date(loop.dueAt).toLocaleString('ru-RU')}`:''}`);return ctx.reply(`${lines.join('\n\n')}\n\nОт: ${author}`,{reply_markup:appKeyboard()})}
+async function reminders(){const now=Date.now();for(const l of await readLoops()){if(!l.ownerId||!l.dueAt||l.type==='saved'||['done','dismissed'].includes(l.status)||l.remindedAt)continue;const due=new Date(l.dueAt).getTime();if(!Number.isFinite(due)||due>now||due<now-reminderGraceMs)continue;try{await bot.api.sendMessage(l.ownerId,`${l.type==='event'?'📅 Сейчас':'⏰ Напоминание'}\n\n${l.title}`,{reply_markup:appKeyboard()});await updateLoop(l.id,{remindedAt:new Date().toISOString(),status:l.status==='snoozed'?'open':l.status},String(l.ownerId))}catch(e){console.error('Reminder failed:',l.id,e)}}}
+bot.command('start',ctx=>ctx.reply('LOOP замечает хвосты в Telegram: что ответить, сделать, дождаться, не забыть или сохранить.\n\nПерешли сюда реальное сообщение или голосовое. Я сохраню только то, что действительно требует твоего внимания.',{reply_markup:appKeyboard()}));
+bot.command('app',ctx=>webAppUrl?ctx.reply('Твоё внимание, люди и память:',{reply_markup:appKeyboard()}):ctx.reply('Mini App пока не подключён на сервере.'));
+bot.command('help',ctx=>ctx.reply('Перешли сообщение, голосовое или кружок. LOOP выделит важное и сохранит источник. В приложении результат можно закрыть, отложить, исправить или удалить.',{reply_markup:appKeyboard()}));
+bot.on('message',async ctx=>{const uid=String(ctx.from?.id??'anonymous');if(!allowRequest(`bot:${uid}`,{limit:Number(process.env.BOT_RATE_LIMIT??20),windowMs:60000}))return ctx.reply('Слишком много сообщений подряд. Подожди минуту и продолжай.');const m=ctx.message,media=mediaInfo(m);if(media){if(!m.forward_origin)return ctx.reply('Перешли мне чужое голосовое или кружок.');if((media.duration??0)>Number(process.env.MAX_AUDIO_SECONDS??600))return ctx.reply('Запись длиннее 10 минут. Пришли более короткий фрагмент.');const s=await ctx.reply('🎙 Разбираю смысл…');try{const t=await transcribeTelegramFile({bot,...media});await ctx.api.deleteMessage(ctx.chat.id,s.message_id).catch(()=>{});return processMeaning(ctx,t,media.kind)}catch(e){console.error(e);await ctx.api.deleteMessage(ctx.chat.id,s.message_id).catch(()=>{});return ctx.reply('Не смог разобрать запись. Попробуй ещё раз.')}}const text=m.text??m.caption;if(!text)return ctx.reply('Сейчас LOOP понимает текст, голосовые, аудио и кружки.');return processMeaning(ctx,text)});
+bot.catch(e=>console.error('Bot error:',e.error));await bot.api.setMyCommands([{command:'app',description:'Открыть LOOP'},{command:'help',description:'Как пользоваться'}]).catch(console.error);if(webAppUrl)await bot.api.setChatMenuButton({menu_button:{type:'web_app',text:'Открыть LOOP',web_app:{url:webAppUrl}}}).catch(console.error);setInterval(()=>reminders().catch(console.error),30000).unref?.();console.log(`LOOP bot is listening… classifier=${process.env.GROQ_API_KEY?'Groq AI + Whisper':'fallback'}`);bot.start();
