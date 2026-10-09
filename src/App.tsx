@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Brain, Briefcase, CalendarPlus, Check, ChevronRight, Clock3, House, Search, UserRound, Users, X } from 'lucide-react';
 import type { LoopSpace, OpenLoop } from './types/open-loop';
 
-const API_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:8787' : '');
+// Prefer the same origin. Ignore legacy localhost overrides that break on a phone.
+const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
+const API_URL = /^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?\/?$/i.test(configuredApiUrl)
+  ? ''
+  : configuredApiUrl.replace(/\/$/, '');
 const telegram = (window as typeof window & { Telegram?: { WebApp?: { initData?: string; ready?: () => void; expand?: () => void } } }).Telegram?.WebApp;
 function authHeaders(): Record<string, string> { return telegram?.initData ? { 'X-Telegram-Init-Data': telegram.initData } : {}; }
 type Tab = 'today' | 'people' | 'memory';
@@ -22,11 +26,11 @@ function telegramLink(loop:OpenLoop){const username=loop.person?.username?.repla
 function googleCalendarLink(loop:OpenLoop){if(!loop.dueAt)return;const start=new Date(loop.dueAt);if(Number.isNaN(start.getTime()))return;const end=new Date(start.getTime()+30*60*1000);const stamp=(d:Date)=>d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z');const params=new URLSearchParams({action:'TEMPLATE',text:loop.title,dates:`${stamp(start)}/${stamp(end)}`,details:loop.source.text?`Из Telegram: ${loop.source.text}`:'Добавлено из LOOP'});return`https://calendar.google.com/calendar/render?${params.toString()}`}
 
 export function App(){
- const[loops,setLoops]=useState<OpenLoop[]>([]),[connected,setConnected]=useState(false),[hasLoaded,setHasLoaded]=useState(false),[tab,setTab]=useState<Tab>('today'),[space,setSpace]=useState<SpaceFilter>('Все'),[selected,setSelected]=useState<OpenLoop|null>(null),[personName,setPersonName]=useState<string|null>(null),[memoryQuery,setMemoryQuery]=useState(''),[memoryResults,setMemoryResults]=useState<OpenLoop[]|null>(null),[memorySearching,setMemorySearching]=useState(false);
- async function loadLoops(){try{const res=await fetch(`${API_URL}/loops`,{headers:authHeaders()});if(!res.ok)throw new Error();setLoops(await res.json());setConnected(true)}catch{setConnected(false)}finally{setHasLoaded(true)}}
+ const[loops,setLoops]=useState<OpenLoop[]>([]),[connected,setConnected]=useState(false),[tab,setTab]=useState<Tab>('today'),[space,setSpace]=useState<SpaceFilter>('Все'),[selected,setSelected]=useState<OpenLoop|null>(null),[personName,setPersonName]=useState<string|null>(null),[memoryQuery,setMemoryQuery]=useState(''),[memoryResults,setMemoryResults]=useState<OpenLoop[]|null>(null),[memorySearching,setMemorySearching]=useState(false);
+ async function loadLoops(){try{const res=await fetch(`${API_URL}/loops`,{headers:authHeaders()});if(!res.ok)throw new Error();setLoops(await res.json());setConnected(true)}catch{setConnected(false)}}
  useEffect(()=>{telegram?.ready?.();telegram?.expand?.();loadLoops();const timer=setInterval(loadLoops,2000);return()=>clearInterval(timer)},[]);
  useEffect(()=>{const q=memoryQuery.trim();if(!q){setMemoryResults(null);setMemorySearching(false);return}const controller=new AbortController();const timer=setTimeout(async()=>{setMemorySearching(true);try{const res=await fetch(`${API_URL}/memory/search?q=${encodeURIComponent(q)}`,{signal:controller.signal,headers:authHeaders()});if(res.ok)setMemoryResults(await res.json())}catch(error){if((error as Error).name!=='AbortError')setMemoryResults([])}finally{if(!controller.signal.aborted)setMemorySearching(false)}},300);return()=>{clearTimeout(timer);controller.abort()}},[memoryQuery]);
- const demoMode=import.meta.env.DEV&&(new URLSearchParams(window.location.search).has('demo')||(hasLoaded&&!connected));
+ const demoMode=import.meta.env.DEV&&new URLSearchParams(window.location.search).has('demo');
  const attention=useMemo(()=>{const now=Date.now();return loops.filter(l=>l.type!=='saved'&&((l.status==='open'||l.status==='suggested')||(l.status==='snoozed'&&l.dueAt&&new Date(l.dueAt).getTime()<=now)))},[loops]);
  const visibleAttention=useMemo(()=>(demoMode?demoLoops:attention).filter(l=>space==='Все'||l.space===space),[attention,space,demoMode]);
  const history=useMemo(()=>loops.filter(l=>l.status==='done').sort((a,b)=>(b.completedAt??'').localeCompare(a.completedAt??'')),[loops]);
