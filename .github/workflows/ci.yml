@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [feat/mvp-forward-loop]
+    branches: [feat/mvp-forward-loop, feat/mvp-forward-loop-ui]
   pull_request:
 
 jobs:
