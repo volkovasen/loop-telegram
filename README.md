@@ -67,6 +67,41 @@ proxy, поэтому на телефоне не нужен `localhost:8787`.
 `WEB_APP_URL` с этим адресом. Обычный LAN HTTP годится только для теста
 в браузере.
 
+## Постоянный HTTPS запуск в Telegram (Railway)
+
+Для закрытого пилота достаточно **одного** Railway-сервиса: фронт, API и
+бот работают через `npm start`. Домен и сертификат выдаёт Railway.
+
+1. Railway → New Project → Deploy from GitHub repo →
+   `volkovasen/loop-telegram`. В Settings → Source выбери ветку
+   `feat/mvp-forward-loop-ui` (не `main`).
+2. Установи команды: Build **`npm run build`**, Start **`npm start`**.
+   Нужен Node.js 22+; `PORT` Railway выдаёт автоматически.
+3. В Variables задай **`NODE_ENV=production`**, **`BOT_TOKEN`**,
+   **`GROQ_API_KEY`**. Эти значения вводи только в Railway, не в GitHub.
+   Не задавай `VITE_API_URL`, чтобы Mini App и API использовали общий домен.
+4. Добавь к сервису **Volume** с mount path **`/data`** до первого запуска.
+   Иначе LOOP в production намеренно откажется стартовать, чтобы не
+   потерять сообщения после нового деплоя. `DATA_DIR` не нужен: путь к
+   подключённому диску определяется автоматически.
+5. В Settings → Networking → Public Networking выбери **Generate Domain**.
+   Получишь HTTPS-адрес `https://…up.railway.app`. После выдачи домена
+   запусти Redeploy, если бот был запущен раньше.
+6. Проверь `https://…up.railway.app/health` (должно вернуть `ok: true`).
+   В `@loop_attention_bot` открой **/app** или кнопку **«Открыть LOOP»**.
+   Бот сам назначает меню на Railway-адрес при запуске.
+7. Перешли боту настоящее сообщение. Оно должно появиться в **Сегодня**,
+   а «Готово» должно сохраняться после повторного открытия приложения.
+
+Проверь, что у сервиса **одна реплика**: у нас Telegram long polling и
+JSON-хранилище, не горизонтально масштабируемый backend. Перед пилотом
+сохрани резервную копию `loops.json` с volume.
+
+**Ограничения:** постоянный сервер может выйти за бесплатные кредиты
+Railway; проверь расход и лимиты в кабинете. До подключения Railway и
+первого деплоя приложение не будет доступно постоянно. Вне Telegram
+production API возвращает 401, это ожидаемо.
+
 ## Production
 
 Нужны минимум:
