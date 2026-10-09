@@ -9,7 +9,9 @@ import { allowRequest } from './rate-limit.mjs';
 const token = process.env.BOT_TOKEN ?? process.env.TELEGRAM_BOT_TOKEN;
 if (!token) throw new Error('BOT_TOKEN is missing in .env');
 const bot = new Bot(token);
-const webAppUrl = process.env.WEB_APP_URL?.trim();
+// Railway supplies this domain once public networking is enabled.
+const webAppUrl = process.env.WEB_APP_URL?.trim()
+  || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : undefined);
 const reminderGraceMs = Number(process.env.REMINDER_GRACE_MINUTES ?? 60) * 60_000;
 
 function cleanName(value) {
