@@ -1,7 +1,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const dataDir = path.resolve(process.env.DATA_DIR || 'server/data');
+// Keep all user data on Railway's persistent volume, never on its ephemeral app disk.
+const railwayVolume = process.env.RAILWAY_VOLUME_MOUNT_PATH;
+if (process.env.NODE_ENV === 'production' && process.env.RAILWAY_PROJECT_ID && !railwayVolume) {
+  throw new Error('LOOP needs a persistent Railway volume. Attach one to the service (mount path /data) before launch.');
+}
+const dataDir = path.resolve(railwayVolume || process.env.DATA_DIR || 'server/data');
 const dataFile = path.join(dataDir, 'loops.json');
 let writeChain = Promise.resolve();
 
