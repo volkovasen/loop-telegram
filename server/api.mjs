@@ -103,4 +103,4 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(port, () => console.log(`LOOP web + API listening on http://localhost:${port}`));
+server.listen(port, '0.0.0.0', () => console.log(`LOOP web + API listening on port ${port}`));
