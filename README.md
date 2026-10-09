@@ -41,6 +41,32 @@ npm run dev
 
 Локальный браузер работает без Telegram auth. Если `LOOP_DEV_USER_ID` не задан, dev API показывает все локальные тестовые записи. В production такого fallback нет.
 
+## Быстрая проверка на телефоне (реальные задачи)
+
+MacBook и телефон должны быть в одной Wi-Fi сети. В локальном режиме нужна заполненная
+`.env` с `BOT_TOKEN`; для AI-классификации нужен также `GROQ_API_KEY`.
+
+```bash
+npm run build && npm start
+```
+
+Открой на телефоне `http://<IP-MacBook>:8787/`. Это один сервер: интерфейс,
+API и бот запускаются вместе. Посмотреть IP можно командой
+`ipconfig getifaddr en0`. При тестировании через обычный браузер
+`NODE_ENV` не должен быть `production`: в production доступ к данным
+требует подлинный Telegram Mini App `initData`.
+
+Если нужен горячий перезапуск интерфейса: в двух терминалах запусти
+`npm run api` и `npm run dev -- --host 0.0.0.0`. Vite отправит запросы
+`/loops`, `/memory/search`, `/me`, `/health` в локальный API через
+proxy, поэтому на телефоне не нужен `localhost:8787`.
+Если в старой `.env` остался `VITE_API_URL=http://localhost:8787`,
+он игнорируется в пользу того же origin.
+
+В настоящем Telegram Mini App нужен публичный HTTPS-адрес и
+`WEB_APP_URL` с этим адресом. Обычный LAN HTTP годится только для теста
+в браузере.
+
 ## Production
 
 Нужны минимум:
