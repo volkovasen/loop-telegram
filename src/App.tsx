@@ -166,7 +166,7 @@ function LoopCard({loop,onOpen}:{loop:OpenLoop;onOpen:()=>void}){
 }
 function LoopDetail({loop,spaces,onAssign,onConfirm,onDismiss,onClose,onDone,onSnooze}:{loop:OpenLoop;spaces:SpaceDefinition[];onAssign:(loop:OpenLoop,name:string)=>void;onConfirm:(l:OpenLoop)=>void;onDismiss:(l:OpenLoop)=>void;onClose:()=>void;onDone:(l:OpenLoop)=>void;onSnooze:(l:OpenLoop)=>void}){
  const chat=telegramLink(loop),calendar=googleCalendarLink(loop),m=meta[loop.type],isDone=loop.status==='done',isDemo=loop.id.startsWith('demo-');
- const proposal=loop.kind==='plan'&&loop.agreementStatus==='proposed';
+ const proposal=loop.kind==='plan'&&(loop.agreementStatus==='proposed'||loop.agreementStatus==='unknown');
  const nextStep=actionHint(loop);
  return <div className="sheet-backdrop" onClick={onClose}><section className="sheet" onClick={e=>e.stopPropagation()}>
   <button className="sheet-close" onClick={onClose} aria-label="Закрыть"><X size={20}/></button>
