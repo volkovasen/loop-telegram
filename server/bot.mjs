@@ -52,7 +52,7 @@ async function processMeaning(ctx, text, mediaKind) {
   const input = { text, author, person, messageId: message.message_id, chatId: message.chat.id, receivedAt: new Date(message.date * 1000).toISOString(), spaces };
   let loops;
   try { loops = await classifyWithAI(input); } catch (error) { console.error('AI classifier failed, using fallback:', error); }
-  if (!loops) { const fallback = classifyMessage(input); loops = [{ ...fallback, person }]; }
+  if (!loops) { const fallback = classifyMessage(input); loops = fallback ? [{ ...fallback, person }] : []; }
   if (loops.length === 0) return ctx.reply(`Разобрал${mediaKind ? ' голосовое' : ' сообщение'}, но ничего, что требует внимания или стоит сохранить, не нашёл.${mediaKind ? `\n\nРасшифровка: «${text}»` : ''}`);
 
   const saved = [];
@@ -61,7 +61,14 @@ async function processMeaning(ctx, text, mediaKind) {
     saved.push(await addLoop(withOwner));
   }
   console.log(JSON.stringify({ event: 'open_loops_created', ownerId, mediaKind, count: saved.length }, null, 2));
-  const summary = saved.map((loop) => `${labels[loop.type]}\n${loop.title}${loop.space ? ` · ${loop.space}` : ' · 📂 Без темы'}${loop.dueAt ? `\n⏰ ${new Date(loop.dueAt).toLocaleString('ru-RU')}` : ''}`).join('\n\n');
+  const summary = saved.map((loop) => {
+    const header = loop.kind === 'plan' && loop.agreementStatus === 'proposed'
+      ? '🤝 Нужно договориться' : labels[loop.type];
+    const date = loop.whenText ? `\n🗓 ${loop.whenText}` :
+      loop.dueAt ? `\n⏰ ${new Date(loop.dueAt).toLocaleString('ru-RU')}` : '';
+    const next = loop.nextActionText ? `\n→ ${loop.nextActionText}` : '';
+    return `${header}\n${loop.title}${loop.space ? ` · ${loop.space}` : ' · 📂 Без темы'}${date}${next}`;
+  }).join('\n\n');
   await ctx.reply(`${saved.length > 1 ? `Нашёл ${saved.length} вещи` : 'Нашёл'}:\n\n${summary}\n\nОт: ${author}${mediaKind ? `\n\n🎙 «${text}»` : `\n«${text}»`}`, { reply_markup: appKeyboard() });
 }
 
@@ -69,7 +76,7 @@ async function sendDueReminders() {
   const now = Date.now();
   const loops = await readLoops();
   for (const loop of loops) {
-    if (!loop.ownerId || !loop.dueAt || loop.type === 'saved' || loop.status === 'done' || loop.status === 'dismissed' || loop.remindedAt) continue;
+    if (!loop.ownerId || !loop.dueAt || loop.agreementStatus === 'proposed' || loop.agreementStatus === 'unknown' || loop.type === 'saved' || loop.status === 'done' || loop.status === 'dismissed' || loop.remindedAt) continue;
     const due = new Date(loop.dueAt).getTime();
     if (!Number.isFinite(due) || due > now || due < now - reminderGraceMs) continue;
     try {
