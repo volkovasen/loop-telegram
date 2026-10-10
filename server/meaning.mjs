@@ -114,7 +114,18 @@ export function normalizeAIItems(items, input) {
   // produced both a saved movie recommendation and an event from one sentence.
   if (signals.proposal) {
     const first = items.find(item => item && typeof item.title === 'string') ?? { type: 'reply', title: proposedTitle(signals, input.author), confidence: 0.85 };
-    return [{ ...first, ...normalizeMeaning({ ...first, type: 'reply', title: proposedTitle(signals, input.author) }, input, signals) }];
+    const main = { ...first, ...normalizeMeaning({ ...first, type: 'reply', title: proposedTitle(signals, input.author) }, input, signals) };
+    // Keep an unrelated explicit request in the same message ("а ещё купи хлеб").
+    // Do not turn the film mentioned as part of a meeting into a second todo.
+    const hasSeparateRequest = /(?:а\\s+ещ[её]|и\\s+ещ[её]|и\\s+заодно|также).{0,45}(?:купи|купить|пришли|отправь|скинь|принеси|захвати|проверь|оплати)/i.test(input.text);
+    const separate = hasSeparateRequest
+      ? items.filter(item => item !== first && item?.type === 'todo')
+        .map(item => {
+          const meaning = normalizeMeaning(item, input, { ...signals, proposal: false, proposalKind: null });
+          return meaning ? { ...item, ...meaning } : null;
+        }).filter(Boolean).slice(0, 2)
+      : [];
+    return [main, ...separate];
   }
   return items.map(item => {
     const meaning = normalizeMeaning(item, input, signals);
