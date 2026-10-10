@@ -16,8 +16,9 @@ jobs:
       - run: npm install
       - run: npm run build
       - run: npm test
+      - run: npm run eval:ai
       - name: Check server syntax
         run: |
-          for file in server/*.mjs; do
+          for file in server/*.mjs scripts/*.mjs; do
             node --check "$file"
           done
