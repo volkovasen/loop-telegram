@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { Bot, InlineKeyboard } from 'grammy';
 import { classifyMessage } from './classifier.mjs';
 import { classifyWithAI } from './ai-classifier.mjs';
-import { addLoop, readLoops, updateLoop } from './store.mjs';
+import { addLoop, readLoops, readSpaces, updateLoop } from './store.mjs';
 import { transcribeTelegramFile } from './transcribe.mjs';
 import { allowRequest } from './rate-limit.mjs';
 
@@ -48,10 +48,11 @@ async function processMeaning(ctx, text, mediaKind) {
 
   const person = originPerson(message);
   const author = person?.name ?? 'Контакт из Telegram';
-  const input = { text, author, person, messageId: message.message_id, chatId: message.chat.id, receivedAt: new Date(message.date * 1000).toISOString() };
+  const spaces = await readSpaces(ownerId);
+  const input = { text, author, person, messageId: message.message_id, chatId: message.chat.id, receivedAt: new Date(message.date * 1000).toISOString(), spaces };
   let loops;
   try { loops = await classifyWithAI(input); } catch (error) { console.error('AI classifier failed, using fallback:', error); }
-  if (!loops) { const fallback = classifyMessage(input); loops = [{ ...fallback, person, space: 'Личное' }]; }
+  if (!loops) { const fallback = classifyMessage(input); loops = [{ ...fallback, person }]; }
   if (loops.length === 0) return ctx.reply(`Разобрал${mediaKind ? ' голосовое' : ' сообщение'}, но ничего, что требует внимания или стоит сохранить, не нашёл.${mediaKind ? `\n\nРасшифровка: «${text}»` : ''}`);
 
   const saved = [];
@@ -60,7 +61,7 @@ async function processMeaning(ctx, text, mediaKind) {
     saved.push(await addLoop(withOwner));
   }
   console.log(JSON.stringify({ event: 'open_loops_created', ownerId, mediaKind, count: saved.length }, null, 2));
-  const summary = saved.map((loop) => `${labels[loop.type]}\n${loop.title}${loop.space ? ` · ${loop.space}` : ''}${loop.dueAt ? `\n⏰ ${new Date(loop.dueAt).toLocaleString('ru-RU')}` : ''}`).join('\n\n');
+  const summary = saved.map((loop) => `${labels[loop.type]}\n${loop.title}${loop.space ? ` · ${loop.space}` : ' · 📂 Без темы'}${loop.dueAt ? `\n⏰ ${new Date(loop.dueAt).toLocaleString('ru-RU')}` : ''}`).join('\n\n');
   await ctx.reply(`${saved.length > 1 ? `Нашёл ${saved.length} вещи` : 'Нашёл'}:\n\n${summary}\n\nОт: ${author}${mediaKind ? `\n\n🎙 «${text}»` : `\n«${text}»`}`, { reply_markup: appKeyboard() });
 }
 
