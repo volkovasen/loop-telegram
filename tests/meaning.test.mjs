@@ -160,3 +160,19 @@ test('a separate errand is preserved beside a meeting proposal', () => {
  assert.equal(got[1].type,'todo');
  assert.equal(got[1].nextAction,'do');
 });
+
+test('suggesting a movie to someone is not a shared plan', () => {
+ const text='Может, посмотри фильм «Тьма», рекомендую';
+ assert.equal(detectSignals(text).proposal,false);
+ assert.equal(detectSignals(text).recommendation,true);
+ assert.equal(classifyMessage(makeInput(text)).type,'saved');
+ const shared='Может, посмотрим фильм в субботу вместе?';
+ assert.equal(detectSignals(shared).proposal,true);
+ assert.equal(classifyMessage(makeInput(shared)).type,'reply');
+});
+
+test('negated agreements are never marked confirmed', () => {
+ assert.equal(detectSignals('Мы не договорились о встрече в субботу').confirmed,false);
+ assert.equal(detectSignals('Мы пока не договорились о времени').confirmed,false);
+ assert.equal(detectSignals('Договорились?').confirmed,false);
+});
