@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import type { OpenLoop } from './types/open-loop';
 
 type MeaningChoice = 'meeting-proposal' | 'meeting-confirmed' | 'todo' | 'reply' | 'waiting' | 'saved';
@@ -28,7 +28,7 @@ export function MeaningEditor({loop,onSave,onCancel}:{
  const [title,setTitle]=useState(loop.title);
  const [error,setError]=useState('');
  const [busy,setBusy]=useState(false);
- async function submit(event:React.FormEvent<HTMLFormElement>){
+ async function submit(event:FormEvent<HTMLFormElement>){
   event.preventDefault();
   if(busy)return;
   if(title.trim().length<3){setError('Укажи понятное название');return;}
