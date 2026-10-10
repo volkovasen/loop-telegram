@@ -15,6 +15,7 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm run build
+      - run: npm test
       - name: Check server syntax
         run: |
           for file in server/*.mjs; do
