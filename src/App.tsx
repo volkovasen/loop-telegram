@@ -106,9 +106,9 @@ function TodayView({loops,history,space,spaces,firstRun,onSpace,onManage,onSelec
  const assigned=loops.filter(loop=>Boolean(loop.space));
  const filterNames=['Все',...spaces.map(item=>item.name)];
  return <>
-  <div className="spaces">
-   {filterNames.map(item=><button type="button" key={item} className={space===item?'selected':''} onClick={()=>onSpace(item)}>{item==='Дом'&&<House size={14}/>} {item==='Работа'&&<Briefcase size={14}/>} {item==='Личное'&&<UserRound size={14}/>} {item}</button>)}
-   <button type="button" className="space-add" onClick={onManage}><FolderPlus size={15}/> + Space</button>
+  <div className="spaces-bar">
+   <div className="spaces">{filterNames.map(item=><button type="button" key={item} className={space===item?'selected':''} onClick={()=>onSpace(item)}>{item==='Дом'&&<House size={14}/>} {item==='Работа'&&<Briefcase size={14}/>} {item==='Личное'&&<UserRound size={14}/>} {item}</button>)}</div>
+   <button type="button" className="space-manage-button" onClick={onManage}><FolderPlus size={15}/> + Space</button>
   </div>
   {firstRun?<FirstRunEmpty/>:<>
    {unassigned.length>0&&<section className="unassigned-section">
