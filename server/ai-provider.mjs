@@ -9,11 +9,11 @@ export const MODEL_PRICES_USD_PER_MILLION = {
 // Cost table is a dated estimate; provider billing remains the source of truth.
 
 export function resolveAIConfig(options = {}) {
-  const provider = String(options.provider ?? process.env.AI_PROVIDER ?? DEFAULT_AI_PROVIDER).toLowerCase();
+  const provider = String(options.provider || process.env.AI_PROVIDER?.trim() || DEFAULT_AI_PROVIDER).toLowerCase();
   if (!['groq','openai'].includes(provider)) throw new Error('AI_PROVIDER must be groq or openai');
   const key = provider === 'groq' ? process.env.GROQ_API_KEY : process.env.OPENAI_API_KEY;
-  const model = String(options.model ?? process.env.AI_MODEL ??
-    (provider === 'groq' ? process.env.GROQ_MODEL || 'openai/gpt-oss-120b' : process.env.OPENAI_MODEL || 'gpt-6-luna')).trim();
+  const model = String(options.model || process.env.AI_MODEL?.trim() ||
+    (provider === 'groq' ? process.env.GROQ_MODEL?.trim() || 'openai/gpt-oss-120b' : process.env.OPENAI_MODEL?.trim() || 'gpt-6-luna')).trim();
   if (!model || !/^[\w.\/-]{1,100}$/.test(model)) throw new Error('Invalid AI model name');
   return {
     provider, model, apiKey: key,
