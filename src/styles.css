@@ -101,3 +101,19 @@
 .detail-next-step{display:grid;gap:7px;margin:0 0 14px;border:1px solid #43533b;background:#252e23;border-radius:14px;padding:13px}
 .detail-next-step small{font-size:10px;font-weight:850;color:#a8c98d;text-transform:uppercase;letter-spacing:.07em}
 .detail-next-step strong{font-size:14px;line-height:1.4;color:#f0f4eb}
+
+/* Manual correction lives inside details, not in a new screen. */
+.meaning-edit-area{margin:0 0 14px}
+.meaning-edit-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px dashed #53634b;border-radius:13px;padding:11px 13px;background:#232a20;color:#d9f99d;font-size:12px;font-weight:800;cursor:pointer}
+.meaning-edit-toggle span{font-size:17px}
+.meaning-editor{display:grid;gap:12px;border:1px solid #4c6140;border-radius:15px;padding:13px;background:#20291e}
+.meaning-editor>strong{font-size:14px;color:#edf4e7}
+.meaning-editor label{display:grid;gap:6px;font-size:11px;color:#aeba9d;font-weight:800}
+.meaning-editor select,.meaning-editor input{width:100%;min-height:42px;background:#151b15;color:#eff4ea;border:1px solid #43543d;border-radius:11px;padding:10px;font-size:13px}
+.meaning-editor p{margin:0;color:#99aa90;font-size:11px;line-height:1.45}
+.meaning-editor .meaning-error{color:#f0aca4;font-weight:700}
+.meaning-editor-actions{display:flex;gap:8px}
+.meaning-editor-actions button{flex:1;padding:12px 8px;border:0;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer}
+.meaning-editor-actions button:disabled{opacity:.6}
+.meaning-cancel{background:#333a30;color:#e0e7d9}
+.meaning-save{background:#d9f99d;color:#1d2614}
