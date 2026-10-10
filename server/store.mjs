@@ -112,6 +112,7 @@ function validateSpaceInput(raw, existing, excludeId) {
   const description = String(raw?.description ?? '').trim();
   if (!name || name.length > 40 || /[\x00-\x1f<>]/.test(name)) throw new SpaceError('Название: от 1 до 40 символов, без управляющих знаков.');
   if (description.length < 8 || description.length > 400) throw new SpaceError('Опиши правила Space: от 8 до 400 символов.');
+  if (['все', 'без темы'].includes(name.toLocaleLowerCase('ru-RU'))) throw new SpaceError('Это название зарезервировано интерфейсом.');
   if (existing.some(item => item.id !== excludeId && item.name.toLocaleLowerCase('ru-RU') === name.toLocaleLowerCase('ru-RU'))) {
     throw new SpaceError('Такой Space уже существует.');
   }
