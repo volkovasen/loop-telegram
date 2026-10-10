@@ -1,4 +1,4 @@
-import { DEFAULT_SPACES, learnedSpaceFor } from './space-rules.mjs';
+import { DEFAULT_SPACES, learnedSpaceFor, normalizeExampleText } from './space-rules.mjs';
 
 const apiKey = process.env.GROQ_API_KEY;
 
@@ -10,7 +10,15 @@ export async function classifyWithAI({ text, author, messageId, chatId, received
   const timeZone = process.env.LOOP_TIMEZONE || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const allowedSpaces = new Set(spaces.map(item => item.name));
   // Names, criteria and examples belong to the current Telegram user only.
-  const spaceContext = spaces.map(item => ({ name: item.name, criteria: item.description, correctedExamples: (item.examples ?? []).slice(0, 8).map(example => ({ text: example.text, authorName: example.authorName })) }));
+  const inputWords = new Set(normalizeExampleText(text).split(' ').filter(word => word.length > 2));
+  const relevance = example => normalizeExampleText(example.text).split(' ').reduce((sum, word) => sum + (inputWords.has(word) ? 1 : 0), 0) + (example.authorName === author ? 2 : 0);
+  // Only the most relevant three examples per Space go to Groq; all eight
+  // recent corrections remain stored privately for future messages.
+  const spaceContext = spaces.map(item => ({
+    name: item.name,
+    criteria: item.description,
+    correctedExamples: [...(item.examples ?? [])].sort((a, b) => relevance(b) - relevance(a)).slice(0, 3).map(example => ({ text: example.text.slice(0, 240), authorName: example.authorName }))
+  }));
 
   const prompt = `Ты движок LOOP, слоя внимания поверх Telegram.
 Найди 0..N отдельных полезных объектов в пересланном сообщении.
