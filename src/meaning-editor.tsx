@@ -12,8 +12,8 @@ const options: {value:MeaningChoice;label:string}[] = [
 ];
 
 function currentChoice(loop:OpenLoop):MeaningChoice {
- if(loop.kind==='plan'&&loop.agreementStatus==='proposed')return 'meeting-proposal';
- if(loop.kind==='plan'&&(loop.agreementStatus==='confirmed'||loop.agreementStatus==='unknown'))return 'meeting-confirmed';
+ if(loop.kind==='plan'&&(loop.agreementStatus==='proposed'||loop.agreementStatus==='unknown'))return 'meeting-proposal';
+ if(loop.kind==='plan'&&loop.agreementStatus==='confirmed')return 'meeting-confirmed';
  if(loop.type==='event')return 'meeting-confirmed';
  if(loop.type==='todo'||loop.type==='waiting'||loop.type==='saved')return loop.type;
  return 'reply';
