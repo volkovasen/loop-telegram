@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowUpRight, Brain, Briefcase, CalendarPlus, Check, ChevronRight, Clock3, FolderPlus, House, MessageSquareText, Search, ShieldCheck, UserRound, Users, X } from 'lucide-react';
 import type { LoopSpace, OpenLoop, SpaceDefinition } from './types/open-loop';
 import { SpacesSheet, UnassignedCard } from './spaces-ui';
+import { MeaningEditor } from './meaning-editor';
 
 // Prefer the same origin. Ignore legacy localhost overrides that break on a phone.
 const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
@@ -80,6 +81,19 @@ export function App(){
    return true;
   }catch(error){setActionError(error instanceof Error?error.message:'Не удалось сохранить.');await loadLoops();return false}
  }
+ async function correctMeaning(loop:OpenLoop,choice:string,title:string):Promise<string|null>{
+  try{
+   const response=await fetch(`${API_URL}/loops/${encodeURIComponent(loop.id)}/correct`,{
+    method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({choice,title})
+   });
+   const result=await response.json();
+   if(!response.ok)return result.error??'Не удалось исправить карточку';
+   const updated=result as OpenLoop;
+   setLoops(items=>items.map(item=>item.id===updated.id?updated:item));
+   setSelected(item=>item?.id===updated.id?updated:item);
+   return null;
+  }catch{return 'Проблема с соединением. Повтори попытку.';}
+ }
  async function assignSpace(loop:OpenLoop,name:string){if(loop.id.startsWith('demo-'))return;await patchLoop(loop.id,{space:name||null,spaceConfidence:name?1:0})}
  async function done(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;const completedAt=new Date().toISOString();if(await patchLoop(loop.id,{status:'done',completedAt}))setSelected(null)}
  async function snooze(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;const until=new Date();until.setDate(until.getDate()+1);until.setHours(9,0,0,0);if(await patchLoop(loop.id,{status:'snoozed',dueAt:until.toISOString()}))setSelected(null)}
@@ -93,7 +107,7 @@ export function App(){
  {tab==='people'&&<PeopleView people={people} selectedName={personName} onSelectName={setPersonName} onSelectLoop={setSelected}/>} 
  {tab==='memory'&&<MemoryView query={memoryQuery} onQuery={setMemoryQuery} loops={memory} searching={memorySearching} onSelect={setSelected}/>} 
  <nav><button className={tab==='today'?'active':''} onClick={()=>setTab('today')}><Clock3/>Сегодня</button><button className={tab==='people'?'active':''} onClick={()=>setTab('people')}><Users/>Люди</button><button className={tab==='memory'?'active':''} onClick={()=>setTab('memory')}><Brain/>Память</button></nav>
- {selected&&<LoopDetail loop={selected} spaces={spaceDefinitions} onAssign={assignSpace} onConfirm={confirmPlan} onDismiss={dismissPlan} onClose={()=>setSelected(null)} onDone={done} onSnooze={snooze}/>}
+ {selected&&<LoopDetail loop={selected} spaces={spaceDefinitions} onAssign={assignSpace} onCorrect={correctMeaning} onConfirm={confirmPlan} onDismiss={dismissPlan} onClose={()=>setSelected(null)} onDone={done} onSnooze={snooze}/>}
  {spaceSheet&&<SpacesSheet spaces={spaceDefinitions} onClose={()=>setSpaceSheet(false)} onSave={saveSpace} onDelete={removeSpace}/>}</main>
 }
 function FirstRunEmpty(){
@@ -164,16 +178,21 @@ function LoopCard({loop,onOpen}:{loop:OpenLoop;onOpen:()=>void}){
   </div>}
  </article>
 }
-function LoopDetail({loop,spaces,onAssign,onConfirm,onDismiss,onClose,onDone,onSnooze}:{loop:OpenLoop;spaces:SpaceDefinition[];onAssign:(loop:OpenLoop,name:string)=>void;onConfirm:(l:OpenLoop)=>void;onDismiss:(l:OpenLoop)=>void;onClose:()=>void;onDone:(l:OpenLoop)=>void;onSnooze:(l:OpenLoop)=>void}){
+function LoopDetail({loop,spaces,onAssign,onCorrect,onConfirm,onDismiss,onClose,onDone,onSnooze}:{loop:OpenLoop;spaces:SpaceDefinition[];onAssign:(loop:OpenLoop,name:string)=>void;onCorrect:(loop:OpenLoop,choice:string,title:string)=>Promise<string|null>;onConfirm:(l:OpenLoop)=>void;onDismiss:(l:OpenLoop)=>void;onClose:()=>void;onDone:(l:OpenLoop)=>void;onSnooze:(l:OpenLoop)=>void}){
  const chat=telegramLink(loop),calendar=googleCalendarLink(loop),m=meta[loop.type],isDone=loop.status==='done',isDemo=loop.id.startsWith('demo-');
  const proposal=loop.kind==='plan'&&(loop.agreementStatus==='proposed'||loop.agreementStatus==='unknown');
  const nextStep=actionHint(loop);
+ const [editMeaning,setEditMeaning]=useState(false);
  return <div className="sheet-backdrop" onClick={onClose}><section className="sheet" onClick={e=>e.stopPropagation()}>
   <button className="sheet-close" onClick={onClose} aria-label="Закрыть"><X size={20}/></button>
   <div className="detail-badge"><span>{m.icon}</span>{loopLabel(loop)}</div><h2>{loop.title}</h2>
   <div className="detail-meta">{loop.space&&<span>{loop.space}</span>}{loop.whenText&&<span>🗓 {loop.whenText}</span>}{loop.memoryCategory&&<span>{loop.memoryCategory}</span>}{loop.dueAt&&!loop.whenText&&<span>⏰ {formatDate(loop.dueAt)}</span>}{isDone&&<span>✓ Закрыто {formatDate(loop.completedAt)}</span>}</div>
   {loop.kind==='plan'&&<p className="agreement-state">{proposal?'Встреча или передача пока предложена, но не подтверждена.':loop.agreementStatus==='confirmed'?'Договорённость подтверждена.':'Не удалось установить, подтверждены ли детали.'}</p>}
   {nextStep&&<div className="detail-next-step"><small>Следующий шаг</small><strong>{nextStep}</strong></div>}
+  {!isDemo&&<div className="meaning-edit-area">
+   {editMeaning?<MeaningEditor loop={loop} onSave={(choice,title)=>onCorrect(loop,choice,title)} onCancel={()=>setEditMeaning(false)}/>
+   :<button type="button" className="meaning-edit-toggle" onClick={()=>setEditMeaning(true)}>Исправить смысл или название <span aria-hidden="true">✎</span></button>}
+  </div>}
   {!isDemo&&<label className="detail-space-select">Тема<select value={loop.space??''} onChange={e=>onAssign(loop,e.target.value)}>
    <option value="">Без темы</option>{spaces.map(item=><option key={item.id} value={item.name}>{item.name}</option>)}
   </select><small>Исправления помогают LOOP точнее распределять следующие сообщения.</small></label>}
