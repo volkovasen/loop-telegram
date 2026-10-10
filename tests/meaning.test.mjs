@@ -110,3 +110,41 @@ test('unknown titles are never filled with made-up stations or locations', () =>
  assert.equal(got.whenText,'завтра');
  assert.equal(got.dueAt,undefined);
 });
+
+test('full Groq adapter repairs a mistaken saved label without touching Spaces', async (t) => {
+ const previousKey = process.env.GROQ_API_KEY;
+ const previousFetch = globalThis.fetch;
+ process.env.GROQ_API_KEY = 'test-no-network-token';
+ const captured = [];
+ globalThis.fetch = async (_url, options) => {
+  captured.push(JSON.parse(options.body));
+  return {
+   ok: true,
+   json: async () => ({
+    choices: [{ message: { content: JSON.stringify({ loops: [
+     { type:'saved',kind:'recommendation',title:'Сохранить фильм',confidence:0.93,space:'Личное',spaceConfidence:0.95,memoryCategory:'Фильмы',dueAt:'2026-10-17T12:00:00+05:00' },
+     { type:'event',title:'Встреча на фильм',confidence:0.89,space:'Личное',spaceConfidence:0.95 }
+    ]}) }}]
+   })
+  };
+ };
+ t.after(() => {
+  globalThis.fetch = previousFetch;
+  if (previousKey === undefined) delete process.env.GROQ_API_KEY;
+  else process.env.GROQ_API_KEY = previousKey;
+ });
+ const {classifyWithAI} = await import(`../server/ai-classifier.mjs?meaning_test=${Date.now()}`);
+ const {DEFAULT_SPACES} = await import('../server/space-rules.mjs');
+ const input = {...makeInput('Давай в субботу встретимся и посмотрим фильм','Арина'), spaces:DEFAULT_SPACES};
+ const got = await classifyWithAI(input);
+ assert.equal(captured.length, 1);
+ assert.equal(got.length, 1);
+ assert.equal(got[0].type, 'reply');
+ assert.equal(got[0].kind,'plan');
+ assert.equal(got[0].agreementStatus,'proposed');
+ assert.equal(got[0].nextAction,'coordinate');
+ assert.equal(got[0].whenText,'в субботу');
+ assert.equal(got[0].dueAt,undefined);
+ assert.equal(got[0].space,'Личное');
+ assert.equal(got[0].memoryCategory,undefined);
+});
