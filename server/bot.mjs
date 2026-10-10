@@ -52,7 +52,16 @@ async function processMeaning(ctx, text, mediaKind) {
   const [spaces,meaningCorrections] = await Promise.all([readSpaces(ownerId),readMeaningCorrections(ownerId)]);
   const input = { text, author, person, messageId: message.message_id, chatId: message.chat.id, receivedAt: new Date(message.date * 1000).toISOString(), spaces, meaningCorrections };
   let loops;
-  try { loops = await classifyWithAI(input); } catch (error) { console.error('AI classifier failed, using fallback:', error); }
+  try {
+    loops = await classifyWithAI(input,{
+      onUsage: info => console.log(JSON.stringify({
+        event:'ai_usage',provider:info.provider,model:info.model,
+        inputTokens:info.usage?.prompt_tokens??null,
+        outputTokens:info.usage?.completion_tokens??null,
+        estimatedUSD:info.estimatedCostUSD
+      }))
+    });
+  } catch (error) { console.error('AI classifier failed, using fallback:', error); }
   if (!loops) { const fallback = classifyMessage(input); loops = fallback ? [{ ...fallback, person }] : []; }
   if (loops.length === 0) return ctx.reply(`Разобрал${mediaKind ? ' голосовое' : ' сообщение'}, но ничего, что требует внимания или стоит сохранить, не нашёл.${mediaKind ? `\n\nРасшифровка: «${text}»` : ''}`);
 
