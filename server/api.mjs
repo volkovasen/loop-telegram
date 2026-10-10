@@ -2,7 +2,8 @@ import 'dotenv/config';
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { SpaceError, createSpace, deleteSpace, editSpace, readLoops, readSpaces, recordSpaceCorrection, updateLoop } from './store.mjs';
+import { SpaceError, createSpace, deleteSpace, editSpace, readLoops, readSpaces, recordSpaceCorrection, rememberMeaningCorrection, updateLoop } from './store.mjs';
+import { meaningPatch } from './meaning-memory.mjs';
 import { searchMemory } from './memory-search.mjs';
 import { resolveRequestUser } from './telegram-auth.mjs';
 import { allowRequest } from './rate-limit.mjs';
@@ -101,6 +102,24 @@ const server = http.createServer(async (req, res) => {
       const url = new URL(req.url, `http://${req.headers.host ?? 'localhost'}`);
       const query = url.searchParams.get('q')?.trim().slice(0, 300) ?? '';
       return send(res, 200, await searchMemory(query, await readLoops(user.id)));
+    }
+
+    const correctionMatch = req.url?.match(/^\/loops\/([^/]+)\/correct$/);
+    if(req.method==='POST' && correctionMatch) {
+      const body=await readJson(req,4000);
+      if(!body || typeof body!=='object' || Array.isArray(body))throw new SpaceError('Ожидался JSON-объект.');
+      const id=decodeURIComponent(correctionMatch[1]);
+      const old=(await readLoops(user.id)).find(item=>item.id===id);
+      if(!old)return send(res,404,{error:'Карточка не найдена'});
+      let patch;
+      try{patch=meaningPatch(body.choice,body.title,old);}
+      catch(error){throw new SpaceError(error.message);}
+      const updated=await updateLoop(id,patch,user.id);
+      if(!updated)return send(res,404,{error:'Карточка не найдена'});
+      // Best-effort learning must never undo a correctly saved manual edit.
+      try{await rememberMeaningCorrection(user.id,updated);}
+      catch(error){console.error('Could not store meaning correction:',error);}
+      return send(res,200,updated);
     }
 
     const match = req.url?.match(/^\/loops\/([^/]+)$/);
