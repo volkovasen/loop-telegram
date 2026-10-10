@@ -117,7 +117,7 @@ export function normalizeAIItems(items, input) {
     const main = { ...first, ...normalizeMeaning({ ...first, type: 'reply', title: proposedTitle(signals, input.author) }, input, signals) };
     // Keep an unrelated explicit request in the same message ("а ещё купи хлеб").
     // Do not turn the film mentioned as part of a meeting into a second todo.
-    const hasSeparateRequest = /(?:а\\s+ещ[её]|и\\s+ещ[её]|и\\s+заодно|также).{0,45}(?:купи|купить|пришли|отправь|скинь|принеси|захвати|проверь|оплати)/i.test(input.text);
+    const hasSeparateRequest = /(?:а\s+ещ[её]|и\s+ещ[её]|и\s+заодно|также).{0,45}(?:купи|купить|пришли|отправь|скинь|принеси|захвати|проверь|оплати)/i.test(input.text);
     const separate = hasSeparateRequest
       ? items.filter(item => item !== first && item?.type === 'todo')
         .map(item => {
