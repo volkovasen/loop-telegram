@@ -12,7 +12,7 @@ export function detectSignals(text = '') {
   const meetingProposal = invitation.test(source) || /предложил[аи]?\s+встрет/i.test(source) || /(?:завтра|сегодня|в\s+субботу|в\s+воскресенье).{0,80}(?:игра|матч|тренировк).{0,80}приходи/i.test(source);
   const deliveryProposal = proposeDelivery.test(source);
   const proposal = meetingProposal || deliveryProposal;
-  const hasConfirmed = confirmed.test(source) && !proposal;
+  const hasConfirmed = confirmed.test(source) && !proposal && !/(?:не|ещ[её]\s+не|пока\s+не)\s+договорились/i.test(source) && !/договорились\s*\?/i.test(source);
   // For 'сегодня не могу, давай завтра привезём' the plan is tomorrow,
   // not the background explanation about today.
   const proposedTail = proposal ? source.match(/(?:давай|можем|предлагаю|предложил[аи]?)(.{0,150})/i)?.[1] : null;
