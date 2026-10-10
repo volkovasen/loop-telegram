@@ -106,6 +106,7 @@ const server = http.createServer(async (req, res) => {
     const match = req.url?.match(/^\/loops\/([^/]+)$/);
     if (req.method === 'PATCH' && match) {
       const patch = await readJson(req, 100_000);
+      if (patch === null || Array.isArray(patch) || typeof patch !== 'object') throw new SpaceError('Ожидался JSON-объект.');
       if (Object.hasOwn(patch, 'space')) {
         if (patch.space !== null && (typeof patch.space !== 'string' || !(await readSpaces(user.id)).some(item => item.name === patch.space))) {
           throw new SpaceError('Такого Space нет.');
