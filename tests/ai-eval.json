@@ -1,0 +1,147 @@
+[
+  {
+    "id": "invite-film",
+    "text": "Давай в субботу встретимся, посмотрим фильм или сериал",
+    "author": "Арина",
+    "expected": [
+      {
+        "type": "reply",
+        "kind": "plan",
+        "agreementStatus": "proposed",
+        "nextAction": "coordinate"
+      }
+    ],
+    "dueAt": false,
+    "note": "Приглашение, не рекомендация"
+  },
+  {
+    "id": "sasha-bring",
+    "text": "Ксюш, сегодня у мамы день рождения, неудобно встретиться сегодня, давай мы тебе завтра его привезём",
+    "author": "Саша",
+    "expected": [
+      {
+        "type": "reply",
+        "kind": "plan",
+        "agreementStatus": "proposed",
+        "nextAction": "coordinate"
+      }
+    ],
+    "dueAt": false,
+    "note": "Предложение передачи, не событие сегодня"
+  },
+  {
+    "id": "movie-recommendation",
+    "text": "Посмотри сериал Тьма, советую, очень хороший",
+    "author": "Арина",
+    "expected": [
+      {
+        "type": "saved",
+        "kind": "recommendation",
+        "nextAction": "none"
+      }
+    ],
+    "note": "Рекомендация без приглашения"
+  },
+  {
+    "id": "buy-paper",
+    "text": "Ксюх, можешь ещё туалетную бумагу купить?",
+    "author": "Маша",
+    "expected": [
+      {
+        "type": "todo",
+        "nextAction": "do"
+      }
+    ],
+    "note": "Просьба, а не ответить"
+  },
+  {
+    "id": "promise",
+    "text": "Я завтра скину тебе все документы",
+    "author": "Кирилл",
+    "expected": [
+      {
+        "type": "waiting",
+        "kind": "promise",
+        "nextAction": "wait"
+      }
+    ],
+    "note": "Ждать другого человека"
+  },
+  {
+    "id": "confirmed-meeting",
+    "text": "Договорились, встречаемся в субботу в 19:00",
+    "author": "Арина",
+    "expected": [
+      {
+        "type": "event",
+        "kind": "plan",
+        "agreementStatus": "confirmed"
+      }
+    ],
+    "note": "Подтверждённая встреча"
+  },
+  {
+    "id": "unknown-meeting",
+    "text": "Собрание завтра в девять",
+    "author": "Саша",
+    "expected": [
+      {
+        "type": "event",
+        "kind": "plan",
+        "agreementStatus": "unknown"
+      }
+    ],
+    "dueAt": false,
+    "note": "Нет уверенности, чей это план"
+  },
+  {
+    "id": "smalltalk",
+    "text": "хаха да, забавно",
+    "author": "Маша",
+    "expected": [],
+    "note": "Не создавать карточку"
+  },
+  {
+    "id": "separate-errand",
+    "text": "Давай встретимся в субботу, а ещё купи хлеб",
+    "author": "Арина",
+    "expected": [
+      {
+        "type": "reply",
+        "kind": "plan",
+        "agreementStatus": "proposed"
+      },
+      {
+        "type": "todo",
+        "nextAction": "do"
+      }
+    ],
+    "note": "Две НЕЗАВИСИМЫЕ цели"
+  },
+  {
+    "id": "confirmation",
+    "text": "Скажи заранее, у нас завтра всё в силе?",
+    "author": "Кирилл",
+    "expected": [
+      {
+        "type": "reply",
+        "nextAction": "reply"
+      }
+    ],
+    "note": "Нужно подтверждение"
+  },
+  {
+    "id": "not-confirmed",
+    "text": "Мы пока не договорились о встрече в субботу",
+    "author": "Саша",
+    "expected": [],
+    "note": "Не превращать отрицание в событие"
+  },
+  {
+    "id": "daily-story",
+    "text": "Я записалась на фотосессию перед днём рождения, студию оплатила, завтра одежду примеряю",
+    "author": "Арина",
+    "expected": [],
+    "note": "Чужой рассказ не обязанность пользователя"
+  }
+]
