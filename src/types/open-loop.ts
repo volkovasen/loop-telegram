@@ -1,6 +1,14 @@
 export type LoopType = 'reply' | 'todo' | 'waiting' | 'event' | 'saved';
 export type LoopStatus = 'suggested' | 'open' | 'snoozed' | 'done' | 'dismissed';
-export type LoopSpace = 'Дом' | 'Работа' | 'Личное';
+export type LoopSpace = string;
+
+export interface SpaceDefinition {
+  id: string;
+  name: string;
+  description: string;
+  isDefault: boolean;
+  examples?: { text: string; authorName?: string }[];
+}
 
 export interface OpenLoop {
   id: string;
@@ -10,7 +18,8 @@ export interface OpenLoop {
   title: string;
   person?: { telegramUserId?: number; name: string; username?: string; nameSource?: 'contact' | 'telegram' };
   dueAt?: string;
-  space?: LoopSpace;
+  space?: LoopSpace | null;
+  spaceConfidence?: number;
   memoryCategory?: string;
   confidence: number;
   source: {
