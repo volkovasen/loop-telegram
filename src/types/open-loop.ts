@@ -1,6 +1,9 @@
 export type LoopType = 'reply' | 'todo' | 'waiting' | 'event' | 'saved';
 export type LoopStatus = 'suggested' | 'open' | 'snoozed' | 'done' | 'dismissed';
 export type LoopSpace = string;
+export type LoopKind = 'plan' | 'request' | 'promise' | 'recommendation' | 'note';
+export type AgreementStatus = 'proposed' | 'confirmed' | 'unknown' | 'not_applicable';
+export type NextAction = 'coordinate' | 'reply' | 'do' | 'wait' | 'none';
 
 export interface SpaceDefinition {
   id: string;
@@ -16,6 +19,11 @@ export interface OpenLoop {
   type: LoopType;
   status: LoopStatus;
   title: string;
+  kind?: LoopKind;
+  agreementStatus?: AgreementStatus;
+  nextAction?: NextAction;
+  nextActionText?: string | null;
+  whenText?: string | null;
   person?: { telegramUserId?: number; name: string; username?: string; nameSource?: 'contact' | 'telegram' };
   dueAt?: string;
   space?: LoopSpace | null;
