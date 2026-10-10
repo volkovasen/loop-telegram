@@ -18,7 +18,7 @@ export function meaningPatch(choice, title, loop) {
     todo: { type:'todo',kind:'request',agreementStatus:'not_applicable',nextAction:'do',nextActionText:'Выполнить просьбу' },
     reply: { type:'reply',kind:'request',agreementStatus:'not_applicable',nextAction:'reply',nextActionText:'Ответить на сообщение' },
     waiting: { type:'waiting',kind:'promise',agreementStatus:'not_applicable',nextAction:'wait',nextActionText:'Дождаться обещанного' },
-    saved: { type:'saved',kind:'note',agreementStatus:'not_applicable',nextAction:'none',nextActionText:null,dueAt:null }
+    saved: { type:'saved',kind:'note',agreementStatus:'not_applicable',nextAction:'none',nextActionText:null,dueAt:null,whenText:null }
   };
   const state = states[choice];
   return { ...state, title:name, ...(state.type==='saved'?{memoryCategory:loop?.memoryCategory??undefined}:{}), status:loop?.status==='done'?'done':'open' };
