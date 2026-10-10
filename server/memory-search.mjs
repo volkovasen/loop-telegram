@@ -1,4 +1,4 @@
-const apiKey = process.env.GROQ_API_KEY;
+import { requestJSON, resolveAIConfig } from './ai-provider.mjs';
 
 const STOP_WORDS = new Set(['и','в','во','на','по','из','от','до','за','к','ко','у','о','об','про','мне','мне-то','мой','моя','мои','что','где','как','какой','какая','какие','кто','куда','когда','ли','бы','же','это','тот','та','те','просто','можно','хочу','советовал','советовала','советовали','посоветовал','посоветовала','посоветовали']);
 const EXPANSIONS = {
@@ -55,8 +55,7 @@ function lexicalMatches(query, memory) {
 }
 
 async function semanticIds(query, memory) {
-  if (!apiKey) return [];
-  const model = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+  if (!resolveAIConfig().apiKey) return [];
   const candidates = memory.slice(0, 150).map((loop) => ({
     id: loop.id,
     title: loop.title,
@@ -85,14 +84,7 @@ async function semanticIds(query, memory) {
 
 Запрос: ${query}\n\nКандидаты:\n${JSON.stringify(candidates)}`;
 
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0, response_format: { type: 'json_object' } })
-  });
-  if (!response.ok) throw new Error(`Groq memory search ${response.status}: ${await response.text()}`);
-  const data = await response.json();
-  const parsed = JSON.parse(data.choices?.[0]?.message?.content ?? '{"ids":[]}');
+  const parsed = await requestJSON(prompt);
   return Array.isArray(parsed.ids) ? parsed.ids : [];
 }
 
