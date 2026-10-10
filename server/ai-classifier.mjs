@@ -1,13 +1,14 @@
 import { DEFAULT_SPACES, learnedSpaceFor, normalizeExampleText } from './space-rules.mjs';
 import { normalizeAIItems } from './meaning.mjs';
-
-const apiKey = process.env.GROQ_API_KEY;
+import { requestJSON, resolveAIConfig } from './ai-provider.mjs';
 
 const allowedTypes = new Set(['reply', 'todo', 'waiting', 'event', 'saved']);
-export async function classifyWithAI({ text, author, messageId, chatId, receivedAt, person, spaces = DEFAULT_SPACES }) {
-  if (!apiKey) return null;
-
-  const model = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+export async function classifyWithAI({ text, author, messageId, chatId, receivedAt, person, spaces = DEFAULT_SPACES }, options = {}) {
+  const config = resolveAIConfig(options);
+  if (!config.apiKey) {
+    if (options.provider) throw new Error((config.provider === 'groq' ? 'GROQ_API_KEY' : 'OPENAI_API_KEY') + ' is missing');
+    return null; // In the live bot only: the conservative local fallback can run.
+  }
   const timeZone = process.env.LOOP_TIMEZONE || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const allowedSpaces = new Set(spaces.map(item => item.name));
   // Names, criteria and examples belong to the current Telegram user only.
@@ -88,31 +89,8 @@ ${JSON.stringify(spaceContext)}
 
 Сообщение:\n${text}`;
 
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.1,
-      response_format: { type: 'json_object' }
-    })
-  });
-
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Groq API ${response.status}: ${detail}`);
-  }
-
-  const data = await response.json();
-  const output = data.choices?.[0]?.message?.content;
-  if (!output) throw new Error('Groq returned no classifier output');
-
-  const parsed = JSON.parse(output);
-  if (!Array.isArray(parsed.loops)) throw new Error('Groq returned invalid loops');
+  const parsed = await requestJSON(prompt, {provider:config.provider,model:config.model,onUsage:options.onUsage,onRaw:options.onRaw});
+  if (!Array.isArray(parsed.loops)) throw new Error('AI provider returned invalid loops');
 
   const cleanItems = normalizeAIItems(parsed.loops, { text, author });
   return cleanItems
