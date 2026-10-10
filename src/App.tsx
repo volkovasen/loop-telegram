@@ -13,7 +13,15 @@ function authHeaders(): Record<string, string> { return telegram?.initData ? { '
 const BOT_URL = 'https://t.me/loop_attention_bot';
 type Tab = 'today' | 'people' | 'memory';
 type SpaceFilter = 'Все' | LoopSpace;
-const meta = { reply:{icon:'↩',label:'Ждёт ответа'}, todo:{icon:'✓',label:'Нужно сделать'}, waiting:{icon:'←',label:'Ждёшь'}, event:{icon:'◷',label:'Событие'}, saved:{icon:'◇',label:'В памяти'} };
+const meta = { reply:{icon:'↩',label:'Нужно ответить'}, todo:{icon:'✓',label:'Нужно сделать'}, waiting:{icon:'←',label:'Ждём обещанного'}, event:{icon:'◷',label:'Событие'}, saved:{icon:'◇',label:'В памяти'} };
+function loopLabel(loop:OpenLoop){
+ if(loop.kind==='plan'&&loop.agreementStatus==='proposed')return 'Договориться';
+ if(loop.kind==='plan'&&loop.agreementStatus==='confirmed')return 'Договорились';
+ if(loop.kind==='plan'&&loop.agreementStatus==='unknown')return 'Детали не подтверждены';
+ return ({reply:'Ответить',todo:'Сделать',waiting:'Ждём',event:'Событие',saved:'Сохранено'} as Record<OpenLoop['type'],string>)[loop.type];
+}
+function actionHint(loop:OpenLoop){return loop.nextActionText??(loop.type==='reply'?'Ответить на сообщение':loop.type==='waiting'?'Дождаться обещанного':loop.type==='todo'?'Выполнить просьбу':null);}
+
 // Only local Vite preview uses these cards. They are never written to the API.
 const demoLoops: OpenLoop[] = [
  {id:'demo-reply',type:'reply',status:'open',title:'Сдать доклад по окружающему миру',person:{name:'Арина'},space:'Личное',confidence:1,dueAt:new Date(Date.now()+86400000).toISOString(),source:{messageId:-1,receivedAt:new Date().toISOString(),text:'Слушай, пожалуйста, не забудь отправить мне доклад по окружающему миру. Он нужен до завтра, и ещё уточни, какие картинки ты хочешь добавить. Если будет время, напиши вечером, вместе посмотрим финальную версию.'},createdAt:new Date().toISOString()},
@@ -24,7 +32,7 @@ const demoLoops: OpenLoop[] = [
 function attentionText(count:number){if(count===1)return'1 вещь требует внимания';if(count>=2&&count<=4)return`${count} вещи требуют внимания`;return`${count} вещей требуют внимания`}
 function formatDate(value?:string){if(!value)return;const date=new Date(value);if(Number.isNaN(date.getTime()))return;return new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(date)}
 function telegramLink(loop:OpenLoop){const username=loop.person?.username?.replace(/^@/,'');if(username)return`https://t.me/${username}`;if(loop.person?.telegramUserId)return`tg://user?id=${loop.person.telegramUserId}`}
-function googleCalendarLink(loop:OpenLoop){if(!loop.dueAt)return;const start=new Date(loop.dueAt);if(Number.isNaN(start.getTime()))return;const end=new Date(start.getTime()+30*60*1000);const stamp=(d:Date)=>d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z');const params=new URLSearchParams({action:'TEMPLATE',text:loop.title,dates:`${stamp(start)}/${stamp(end)}`,details:loop.source.text?`Из Telegram: ${loop.source.text}`:'Добавлено из LOOP'});return`https://calendar.google.com/calendar/render?${params.toString()}`}
+function googleCalendarLink(loop:OpenLoop){if(!loop.dueAt||loop.agreementStatus==='proposed'||loop.agreementStatus==='unknown')return;const start=new Date(loop.dueAt);if(Number.isNaN(start.getTime()))return;const end=new Date(start.getTime()+30*60*1000);const stamp=(d:Date)=>d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z');const params=new URLSearchParams({action:'TEMPLATE',text:loop.title,dates:`${stamp(start)}/${stamp(end)}`,details:loop.source.text?`Из Telegram: ${loop.source.text}`:'Добавлено из LOOP'});return`https://calendar.google.com/calendar/render?${params.toString()}`}
 
 export function App(){
  const[loops,setLoops]=useState<OpenLoop[]>([]),[spaceDefinitions,setSpaceDefinitions]=useState<SpaceDefinition[]>([]),[spaceSheet,setSpaceSheet]=useState(false),[actionError,setActionError]=useState(''),[connected,setConnected]=useState(false),[hasLoaded,setHasLoaded]=useState(false),[tab,setTab]=useState<Tab>('today'),[space,setSpace]=useState<SpaceFilter>('Все'),[selected,setSelected]=useState<OpenLoop|null>(null),[personName,setPersonName]=useState<string|null>(null),[memoryQuery,setMemoryQuery]=useState(''),[memoryResults,setMemoryResults]=useState<OpenLoop[]|null>(null),[memorySearching,setMemorySearching]=useState(false);
@@ -75,6 +83,8 @@ export function App(){
  async function assignSpace(loop:OpenLoop,name:string){if(loop.id.startsWith('demo-'))return;await patchLoop(loop.id,{space:name||null,spaceConfidence:name?1:0})}
  async function done(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;const completedAt=new Date().toISOString();if(await patchLoop(loop.id,{status:'done',completedAt}))setSelected(null)}
  async function snooze(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;const until=new Date();until.setDate(until.getDate()+1);until.setHours(9,0,0,0);if(await patchLoop(loop.id,{status:'snoozed',dueAt:until.toISOString()}))setSelected(null)}
+ async function confirmPlan(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;await patchLoop(loop.id,{type:'event',kind:'plan',agreementStatus:'confirmed',nextAction:'none',nextActionText:null,status:'open'})}
+ async function dismissPlan(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;if(await patchLoop(loop.id,{status:'dismissed'}))setSelected(null)}
  const firstRun=hasLoaded&&connected&&loops.length===0&&!demoMode;
  const title=tab==='today'?'Сегодня':tab==='people'?'Люди':'Память';
  return <main className="shell"><header><div className="eyebrow">LOOP</div><h1>{title}</h1><p>{tab==='today'&&demoMode?'Демо · карточки для просмотра на телефоне':!hasLoaded?'Загружаем сообщения…':!connected?'LOOP не подключён':firstRun?'Твои важные сообщения будут здесь':tab==='today'?(attention.length?attentionText(attention.length):'Хвостов нет. Красиво.'):tab==='people'?`${people.length} человек в контексте`:`${allMemory.length} сохранено`}</p></header>
@@ -83,7 +93,7 @@ export function App(){
  {tab==='people'&&<PeopleView people={people} selectedName={personName} onSelectName={setPersonName} onSelectLoop={setSelected}/>} 
  {tab==='memory'&&<MemoryView query={memoryQuery} onQuery={setMemoryQuery} loops={memory} searching={memorySearching} onSelect={setSelected}/>} 
  <nav><button className={tab==='today'?'active':''} onClick={()=>setTab('today')}><Clock3/>Сегодня</button><button className={tab==='people'?'active':''} onClick={()=>setTab('people')}><Users/>Люди</button><button className={tab==='memory'?'active':''} onClick={()=>setTab('memory')}><Brain/>Память</button></nav>
- {selected&&<LoopDetail loop={selected} spaces={spaceDefinitions} onAssign={assignSpace} onClose={()=>setSelected(null)} onDone={done} onSnooze={snooze}/>}
+ {selected&&<LoopDetail loop={selected} spaces={spaceDefinitions} onAssign={assignSpace} onConfirm={confirmPlan} onDismiss={dismissPlan} onClose={()=>setSelected(null)} onDone={done} onSnooze={snooze}/>}
  {spaceSheet&&<SpacesSheet spaces={spaceDefinitions} onClose={()=>setSpaceSheet(false)} onSave={saveSpace} onDelete={removeSpace}/>}</main>
 }
 function FirstRunEmpty(){
@@ -130,8 +140,9 @@ function LoopCard({loop,onOpen}:{loop:OpenLoop;onOpen:()=>void}){
  const chat=telegramLink(loop);
  const message=loop.source.text;
  const date=loop.dueAt?new Date(loop.dueAt):null;
- const dateLabel=date&&!Number.isNaN(date.getTime())?new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',year:'2-digit'}).format(date):null;
- const typeLabel=({reply:'Ответить',todo:'Сделать',waiting:'Ожидание',event:'Событие',saved:'Сохранено'} as Record<OpenLoop['type'],string>)[loop.type];
+ const dateLabel=loop.whenText??(date&&!Number.isNaN(date.getTime())?new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',year:'2-digit'}).format(date):null);
+ const typeLabel=loopLabel(loop);
+ const nextStep=actionHint(loop);
  return <article className="card attention-card">
   <div className="attention-head">
    <div className="attention-avatar">{(loop.person?.name??'L').slice(0,1).toUpperCase()}</div>
@@ -142,6 +153,7 @@ function LoopCard({loop,onOpen}:{loop:OpenLoop;onOpen:()=>void}){
    <button type="button" className="attention-menu" aria-label="Открыть детали задачи" onClick={onOpen}><span aria-hidden="true">···</span></button>
   </div>
   <h2>{loop.title}</h2>
+  {nextStep&&<div className="attention-next-step"><strong>Следующий шаг</strong><span>{nextStep}</span></div>}
   {message&&<div className="attention-source">
    <div className="attention-source-label">{loop.source.mediaKind?'РАСШИФРОВКА':'В ЧАТЕ'}</div>
    <p className={expanded?'attention-message expanded':'attention-message'}>{message}</p>
@@ -152,12 +164,16 @@ function LoopCard({loop,onOpen}:{loop:OpenLoop;onOpen:()=>void}){
   </div>}
  </article>
 }
-function LoopDetail({loop,spaces,onAssign,onClose,onDone,onSnooze}:{loop:OpenLoop;spaces:SpaceDefinition[];onAssign:(loop:OpenLoop,name:string)=>void;onClose:()=>void;onDone:(l:OpenLoop)=>void;onSnooze:(l:OpenLoop)=>void}){
+function LoopDetail({loop,spaces,onAssign,onConfirm,onDismiss,onClose,onDone,onSnooze}:{loop:OpenLoop;spaces:SpaceDefinition[];onAssign:(loop:OpenLoop,name:string)=>void;onConfirm:(l:OpenLoop)=>void;onDismiss:(l:OpenLoop)=>void;onClose:()=>void;onDone:(l:OpenLoop)=>void;onSnooze:(l:OpenLoop)=>void}){
  const chat=telegramLink(loop),calendar=googleCalendarLink(loop),m=meta[loop.type],isDone=loop.status==='done',isDemo=loop.id.startsWith('demo-');
+ const proposal=loop.kind==='plan'&&loop.agreementStatus==='proposed';
+ const nextStep=actionHint(loop);
  return <div className="sheet-backdrop" onClick={onClose}><section className="sheet" onClick={e=>e.stopPropagation()}>
   <button className="sheet-close" onClick={onClose} aria-label="Закрыть"><X size={20}/></button>
-  <div className="detail-badge"><span>{m.icon}</span>{m.label}</div><h2>{loop.title}</h2>
-  <div className="detail-meta">{loop.space&&<span>{loop.space}</span>}{loop.memoryCategory&&<span>{loop.memoryCategory}</span>}{loop.dueAt&&<span>⏰ {formatDate(loop.dueAt)}</span>}{isDone&&<span>✓ Закрыто {formatDate(loop.completedAt)}</span>}</div>
+  <div className="detail-badge"><span>{m.icon}</span>{loopLabel(loop)}</div><h2>{loop.title}</h2>
+  <div className="detail-meta">{loop.space&&<span>{loop.space}</span>}{loop.whenText&&<span>🗓 {loop.whenText}</span>}{loop.memoryCategory&&<span>{loop.memoryCategory}</span>}{loop.dueAt&&!loop.whenText&&<span>⏰ {formatDate(loop.dueAt)}</span>}{isDone&&<span>✓ Закрыто {formatDate(loop.completedAt)}</span>}</div>
+  {loop.kind==='plan'&&<p className="agreement-state">{proposal?'Встреча или передача пока предложена, но не подтверждена.':loop.agreementStatus==='confirmed'?'Договорённость подтверждена.':'Не удалось установить, подтверждены ли детали.'}</p>}
+  {nextStep&&<div className="detail-next-step"><small>Следующий шаг</small><strong>{nextStep}</strong></div>}
   {!isDemo&&<label className="detail-space-select">Тема<select value={loop.space??''} onChange={e=>onAssign(loop,e.target.value)}>
    <option value="">Без темы</option>{spaces.map(item=><option key={item.id} value={item.name}>{item.name}</option>)}
   </select><small>Исправления помогают LOOP точнее распределять следующие сообщения.</small></label>}
@@ -165,6 +181,7 @@ function LoopDetail({loop,spaces,onAssign,onClose,onDone,onSnooze}:{loop:OpenLoo
   {loop.source.text&&<div className="source-block"><small>{loop.source.mediaKind?'Расшифровка':'Исходное сообщение'}</small><p>“{loop.source.text}”</p></div>}
   <div className="detail-actions">{chat&&<a href={chat}>Открыть чат в Telegram</a>}{calendar&&<a href={calendar} target="_blank" rel="noreferrer"><CalendarPlus size={17}/>В календарь</a>}</div>
   {isDemo&&<p style={{color:'#9da29b',fontSize:12}}>Демо-карточка. Действия не сохраняются.</p>}
-  {!isDemo&&!isDone&&loop.type!=='saved'&&<div className="sheet-footer"><button className="primary" onClick={()=>onDone(loop)}>{loop.type==='waiting'?'Получено':'Готово'}</button><button className="ghost" onClick={()=>onSnooze(loop)}>До завтра</button></div>}
+  {!isDemo&&!isDone&&loop.status!=='dismissed'&&proposal&&<div className="sheet-footer"><button className="primary" onClick={()=>onConfirm(loop)}>Договорились</button><button className="ghost" onClick={()=>onDismiss(loop)}>Неактуально</button></div>}
+  {!isDemo&&!isDone&&loop.status!=='dismissed'&&!proposal&&loop.type!=='saved'&&<div className="sheet-footer"><button className="primary" onClick={()=>onDone(loop)}>{loop.type==='waiting'?'Получено':'Готово'}</button><button className="ghost" onClick={()=>onSnooze(loop)}>До завтра</button></div>}
  </section></div>;
 }
