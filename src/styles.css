@@ -92,3 +92,12 @@
 .spaces-bar{display:flex;gap:8px;align-items:flex-start}
 .spaces-bar .spaces{flex:1;min-width:0}
 .space-manage-button{flex:0 0 auto;height:36px;padding:0 11px;border-radius:999px;border:1px dashed #62764b;background:#21291f;color:#d9f99d;font-size:12px;font-weight:800;display:flex;gap:5px;align-items:center;cursor:pointer;white-space:nowrap}
+
+/* Commitments: next action stays visible independently from the message source. */
+.attention-next-step{display:grid;gap:5px;margin:0 0 14px;padding:11px 13px;background:#262c25;border:1px solid #3b4935;border-radius:14px}
+.attention-next-step strong{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#a0c17e}
+.attention-next-step span{font-size:13px;line-height:1.45;color:#e3e9dd;overflow-wrap:anywhere}
+.agreement-state{background:#242921;border:1px solid #3a4735;color:#bbcaaa;border-radius:13px;padding:11px 12px;margin:3px 0 15px;font-size:12px;line-height:1.45}
+.detail-next-step{display:grid;gap:7px;margin:0 0 14px;border:1px solid #43533b;background:#252e23;border-radius:14px;padding:13px}
+.detail-next-step small{font-size:10px;font-weight:850;color:#a8c98d;text-transform:uppercase;letter-spacing:.07em}
+.detail-next-step strong{font-size:14px;line-height:1.4;color:#f0f4eb}
