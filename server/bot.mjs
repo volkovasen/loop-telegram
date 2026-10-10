@@ -3,7 +3,7 @@ import { Bot, InlineKeyboard } from 'grammy';
 import { classifyMessage } from './classifier.mjs';
 import { classifyWithAI } from './ai-classifier.mjs';
 import { resolveAIConfig } from './ai-provider.mjs';
-import { addLoop, readLoops, readSpaces, updateLoop } from './store.mjs';
+import { addLoop, readLoops, readSpaces, readMeaningCorrections, updateLoop } from './store.mjs';
 import { transcribeTelegramFile } from './transcribe.mjs';
 import { allowRequest } from './rate-limit.mjs';
 
@@ -49,8 +49,8 @@ async function processMeaning(ctx, text, mediaKind) {
 
   const person = originPerson(message);
   const author = person?.name ?? 'Контакт из Telegram';
-  const spaces = await readSpaces(ownerId);
-  const input = { text, author, person, messageId: message.message_id, chatId: message.chat.id, receivedAt: new Date(message.date * 1000).toISOString(), spaces };
+  const [spaces,meaningCorrections] = await Promise.all([readSpaces(ownerId),readMeaningCorrections(ownerId)]);
+  const input = { text, author, person, messageId: message.message_id, chatId: message.chat.id, receivedAt: new Date(message.date * 1000).toISOString(), spaces, meaningCorrections };
   let loops;
   try { loops = await classifyWithAI(input); } catch (error) { console.error('AI classifier failed, using fallback:', error); }
   if (!loops) { const fallback = classifyMessage(input); loops = fallback ? [{ ...fallback, person }] : []; }
