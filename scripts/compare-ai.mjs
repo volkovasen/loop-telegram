@@ -30,7 +30,7 @@ function evaluate(c,result) {
   const at=actual.findIndex(x=>matches(expected,x));
   if(at<0)miss.push(identity(expected));else actual.splice(at,1);
  }
- const correct=miss.length===0&&actual.length===0&&(!c.dueAt||result.every(x=>!x.dueAt));
+ const correct=miss.length===0&&actual.length===0&&(c.dueAt!==false||result.every(x=>!x.dueAt));
  return {ok:correct,issues:[...miss.map(x=>'missing:'+x),...actual.map(x=>'extra:'+identity(x)),...(c.dueAt===false&&result.some(x=>x.dueAt)?['unexpected dueAt']:[])]};
 }
 console.log('LOOP AI model comparison. Cases:',cases.length);
@@ -41,10 +41,10 @@ for(const provider of providers) {
  if(!live) continue;
  if(!config.apiKey){console.log(`SKIPPED: ${provider==='groq'?'GROQ_API_KEY':'OPENAI_API_KEY'} not set`);continue;}
  if(!MODEL_PRICES_USD_PER_MILLION[`${provider}:${config.model}`]){console.log('SKIPPED: unknown token price. Select a priced model before a paid benchmark.');continue;}
- let score=0,cost=0,known=0;
+ let score=0,cost=0,known=0,attempted=0;
  for(let i=0;i<cases.length;i++) {
   if(cost>=maxUSD){console.log('Stopping: estimated cost ceiling reached');break;}
-  const c=cases[i];let usage=null,raw=null;
+  const c=cases[i];let usage=null,raw=null;attempted++;
   try{
    const result = await classifyWithAI({
     text:c.text,author:c.author,messageId:i+1,chatId:100,receivedAt:'2026-10-11T09:00:00+05:00',
@@ -63,6 +63,6 @@ for(const provider of providers) {
   }catch(error){console.log(JSON.stringify({id:c.id,error:String(error.message??error).slice(0,260)}))}
   if(i<cases.length-1)await new Promise(resolve=>setTimeout(resolve,delayMs));
  }
- console.log(`RESULT ${provider}: ${score}/${cases.length} passed; estimated text cost $${cost.toFixed(5)} (${known} measured requests)`);
+ console.log(`RESULT ${provider}: ${score}/${attempted} passed; estimated text cost ${cost.toFixed(5)} (${known} measured requests)`);
 }
 if(!live) console.log('\nDRY RUN: no API calls made. Use --live --provider=groq|openai|both --max=5 to spend API tokens deliberately.');
