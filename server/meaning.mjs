@@ -9,11 +9,14 @@ const recommendation = /(?:рекомендую|советую|рекоменд�
 
 export function detectSignals(text = '') {
   const source = String(text);
-  const meetingProposal = invitation.test(source) || /предложил[аи]?\s+встрет/i.test(source);
+  const meetingProposal = invitation.test(source) || /предложил[аи]?\s+встрет/i.test(source) || /(?:завтра|сегодня|в\s+субботу|в\s+воскресенье).{0,80}(?:игра|матч|тренировк).{0,80}приходи/i.test(source);
   const deliveryProposal = proposeDelivery.test(source);
   const proposal = meetingProposal || deliveryProposal;
   const hasConfirmed = confirmed.test(source) && !proposal;
-  const date = source.match(new RegExp(day, 'iu'))?.[0] ?? null;
+  // For 'сегодня не могу, давай завтра привезём' the plan is tomorrow,
+  // not the background explanation about today.
+  const proposedTail = proposal ? source.match(/(?:давай|можем|предлагаю|предложил[аи]?)(.{0,150})/i)?.[1] : null;
+  const date = (proposedTail?.match(new RegExp(day, 'iu'))?.[0]) ?? source.match(new RegExp(day, 'iu'))?.[0] ?? null;
   return {
     proposal,
     proposalKind: meetingProposal ? 'meeting' : deliveryProposal ? 'delivery' : null,
@@ -25,8 +28,9 @@ export function detectSignals(text = '') {
 }
 
 export function proposedTitle(signals, author) {
-  const who = author && author !== 'Контакт из Telegram' && author !== 'Я' ? ` с ${author}` : '';
-  if (signals.proposalKind === 'delivery') return `Согласовать передачу${who}`;
+  // The author's name is already shown in the card. Avoid grammatically
+  // incorrect case inflections of Russian first names in a generated title.
+  if (signals.proposalKind === 'delivery') return 'Согласовать передачу вещи';
   return `Договориться о встрече${signals.whenText ? ' ' + signals.whenText : ''}`;
 }
 
