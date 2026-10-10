@@ -35,6 +35,7 @@ function evaluate(c,result) {
 }
 console.log('LOOP AI model comparison. Cases:',cases.length);
 console.log('This command NEVER sends real Telegram messages: only local test fixtures.');
+let overallCostUSD=0;
 for(const provider of providers) {
  const config = resolveAIConfig({provider});
  console.log(`\n${provider}/${config.model} | published estimate: `,MODEL_PRICES_USD_PER_MILLION[`${provider}:${config.model}`]??'unpriced model');
@@ -43,7 +44,7 @@ for(const provider of providers) {
  if(!MODEL_PRICES_USD_PER_MILLION[`${provider}:${config.model}`]){console.log('SKIPPED: unknown token price. Select a priced model before a paid benchmark.');continue;}
  let score=0,cost=0,known=0,attempted=0;
  for(let i=0;i<cases.length;i++) {
-  if(cost>=maxUSD){console.log('Stopping: estimated cost ceiling reached');break;}
+  if(overallCostUSD>=maxUSD){console.log('Stopping: estimated overall cost ceiling reached');break;}
   const c=cases[i];let usage=null,raw=null;attempted++;
   try{
    const result = await classifyWithAI({
@@ -53,7 +54,7 @@ for(const provider of providers) {
    const evaluation=evaluate(c,result??[]);
    if(evaluation.ok)score++;
    const charge=usage?.estimatedCostUSD;
-   if(typeof charge==='number'){cost+=charge;known++}
+   if(typeof charge==='number'){cost+=charge;overallCostUSD+=charge;known++}
    console.log(JSON.stringify({
     id:c.id,ok:evaluation.ok,issues:evaluation.issues,
     predicted:(result??[]).map(x=>({type:x.type,kind:x.kind,agreementStatus:x.agreementStatus,nextAction:x.nextAction,title:x.title,dueAt:x.dueAt??null})),
@@ -66,3 +67,5 @@ for(const provider of providers) {
  console.log(`RESULT ${provider}: ${score}/${attempted} passed; estimated text cost ${cost.toFixed(5)} (${known} measured requests)`);
 }
 if(!live) console.log('\nDRY RUN: no API calls made. Use --live --provider=groq|openai|both --max=5 to spend API tokens deliberately.');
+
+if(live) console.log('Total estimated text cost USD:',overallCostUSD.toFixed(6),'of estimated cap',maxUSD);
