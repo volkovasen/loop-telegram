@@ -148,3 +148,15 @@ test('full Groq adapter repairs a mistaken saved label without touching Spaces',
  assert.equal(got[0].space,'Личное');
  assert.equal(got[0].memoryCategory,undefined);
 });
+
+test('a separate errand is preserved beside a meeting proposal', () => {
+ const input=makeInput('Давай встретимся в субботу, а ещё купи хлеб');
+ const got=normalizeAIItems([
+  {type:'reply',title:'Встретиться в субботу'},
+  {type:'todo',title:'Купить хлеб'}
+ ],input);
+ assert.equal(got.length,2);
+ assert.equal(got[0].kind,'plan');
+ assert.equal(got[1].type,'todo');
+ assert.equal(got[1].nextAction,'do');
+});
