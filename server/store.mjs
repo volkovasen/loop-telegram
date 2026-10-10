@@ -10,6 +10,7 @@ if (process.env.NODE_ENV === 'production' && process.env.RAILWAY_PROJECT_ID && !
 const dataDir = path.resolve(railwayVolume || process.env.DATA_DIR || 'server/data');
 const dataFile = path.join(dataDir, 'loops.json');
 const spacesFile = path.join(dataDir, 'spaces.json');
+const meaningFile = path.join(dataDir, 'meaning-corrections.json');
 let writeChain = Promise.resolve();
 
 async function ensureStore() {
@@ -207,4 +208,47 @@ export async function recordSpaceCorrection(ownerId, spaceName, text, authorName
     }
     await writeSpaceRecords(records);
   });
+}
+
+async function readMeaningRecords(){
+ await fs.mkdir(dataDir,{recursive:true});
+ try{
+  const records=JSON.parse(await fs.readFile(meaningFile,'utf8'));
+  if(!Array.isArray(records))throw new Error('Invalid meaning-corrections.json');
+  return records;
+ }catch(error){
+  if(error.code==='ENOENT')return [];
+  throw error;
+ }
+}
+
+export async function readMeaningCorrections(ownerId){
+ if(!ownerId)throw new SpaceError('User is required',401);
+ return (await readMeaningRecords()).filter(record=>record.ownerId===String(ownerId)).slice(0,20);
+}
+
+export async function rememberMeaningCorrection(ownerId,loop){
+ if(!loop?.source?.text)return;
+ return enqueueWrite(async()=>{
+  const records=await readMeaningRecords();
+  const text=String(loop.source.text).slice(0,450);
+  const authorName=String(loop.source.authorName??'').slice(0,80);
+  const norm=normalizeExampleText(text), authorNorm=normalizeExampleText(authorName);
+  const remaining=records.filter(record=>
+   !(record.ownerId===String(ownerId)&&normalizeExampleText(record.text)===norm&&normalizeExampleText(record.authorName)===authorNorm));
+  const entry={
+   ownerId:String(ownerId),text,authorName,
+   corrected:{
+    type:loop.type,kind:loop.kind,agreementStatus:loop.agreementStatus,
+    nextAction:loop.nextAction,title:loop.title
+   },
+   correctedAt:new Date().toISOString()
+  };
+  const current=remaining.filter(record=>record.ownerId===String(ownerId));
+  const other=remaining.filter(record=>record.ownerId!==String(ownerId));
+  const output=[entry,...current].slice(0,20);
+  const tmp=`${meaningFile}.tmp`;
+  await fs.writeFile(tmp,JSON.stringify([...other,...output],null,2),'utf8');
+  await fs.rename(tmp,meaningFile);
+ });
 }
