@@ -56,3 +56,8 @@ test('date-only model output cannot sneak in a fabricated clock time',()=>{
  assert.deepEqual(acceptedSchedule(meeting,event,'Встречаемся в субботу'),{eventDate:'2026-10-17'});
  assert.deepEqual(acceptedSchedule(meeting,event,'Встречаемся в субботу в 12:00'),meeting);
 });
+
+test('day-month notation without a clock does not fabricate a timed event',()=>{
+ const candidate={eventDate:'2026-12-10',eventAt:'2026-12-10T12:00:00+05:00'};
+ assert.deepEqual(acceptedSchedule(candidate,event,'Договорились, встреча 10.12'),{eventDate:'2026-12-10'});
+});
