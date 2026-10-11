@@ -28,9 +28,8 @@ export function temporalStatus(loop, now = Date.now(), zone = 'UTC') {
  if (supportsDeadline(loop)) {
   if (validInstant(loop.deadlineAt)) return Date.parse(loop.deadlineAt) < time ? 'overdue' : null;
   if (validDate(loop.deadlineDate)) return localDay(time,zone) > loop.deadlineDate ? 'overdue' : null;
-  // Legacy cards have only dueAt. Snoozed cards have that same field, which
-  // is not reliable evidence of a deadline.
-  if (loop.status !== 'snoozed' && validInstant(loop.dueAt)) return Date.parse(loop.dueAt) < time ? 'overdue' : null;
+  // Legacy dueAt was used for BOTH reminders and deadlines. Do not
+  // retroactively label old cards overdue without explicit evidence.
  }
  if (isConfirmedEvent(loop)) {
   if (validInstant(loop.eventAt)) return Date.parse(loop.eventAt) < time ? 'past_event' : null;
