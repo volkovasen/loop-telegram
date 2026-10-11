@@ -2,14 +2,14 @@ import { useState, type FormEvent } from 'react';
 import type { OpenLoop } from './types/open-loop';
 
 function validDay(text?:string|null) { return typeof text==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(text); }
-function localDate(value:string|undefined){
+function localDate(value:string|null|undefined){
  if(!value)return '';
  const d=new Date(value);
  if(Number.isNaN(d.getTime()))return '';
  const pad=(n:number)=>String(n).padStart(2,'0');
  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 }
-function localTime(value:string|undefined){
+function localTime(value:string|null|undefined){
  if(!value)return '';
  const d=new Date(value);
  if(Number.isNaN(d.getTime()))return '';
