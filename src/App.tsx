@@ -97,7 +97,7 @@ export function App(){
  }
  async function assignSpace(loop:OpenLoop,name:string){if(loop.id.startsWith('demo-'))return;await patchLoop(loop.id,{space:name||null,spaceConfidence:name?1:0})}
  async function done(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;const completedAt=new Date().toISOString();if(await patchLoop(loop.id,{status:'done',completedAt}))setSelected(null)}
- async function snooze(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;const until=new Date();until.setDate(until.getDate()+1);until.setHours(9,0,0,0);if(await patchLoop(loop.id,{status:'snoozed',snoozedUntil:until.toISOString(),remindedAt:undefined}))setSelected(null)}
+ async function snooze(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;const until=new Date();until.setDate(until.getDate()+1);until.setHours(9,0,0,0);if(await patchLoop(loop.id,{status:'snoozed',snoozedUntil:until.toISOString(),remindedAt:null}))setSelected(null)}
  async function saveSchedule(loop:OpenLoop,kind:'deadline'|'event',date:string|null,at:string|null):Promise<string|null>{
   try{
    const res=await fetch(`${API_URL}/loops/${encodeURIComponent(loop.id)}/schedule`,{
@@ -205,7 +205,7 @@ function LoopDetail({loop,spaces,onAssign,onCorrect,onSchedule,onConfirm,onDismi
  return <div className="sheet-backdrop" onClick={onClose}><section className="sheet" onClick={e=>e.stopPropagation()}>
   <button className="sheet-close" onClick={onClose} aria-label="Закрыть"><X size={20}/></button>
   <div className="detail-badge"><span>{m.icon}</span>{loopLabel(loop)}</div><h2>{loop.title}</h2>
-  <div className="detail-meta">{loop.space&&<span>{loop.space}</span>}{loop.whenText&&<span>🗓 {loop.whenText}</span>}{loop.memoryCategory&&<span>{loop.memoryCategory}</span>}{loop.dueAt&&!loop.whenText&&<span>⏰ {formatDate(loop.dueAt)}</span>}{isDone&&<span>✓ Закрыто {formatDate(loop.completedAt)}</span>}</div>
+  <div className="detail-meta">{loop.space&&<span>{loop.space}</span>}{loop.whenText&&<span>🗓 {loop.whenText}</span>}{loop.memoryCategory&&<span>{loop.memoryCategory}</span>}{(loop.deadlineDate||loop.eventDate)&&<span>📅 {loop.deadlineDate||loop.eventDate}</span>}{(loop.deadlineAt||loop.eventAt)&&<span>⏰ {formatDate(loop.deadlineAt||loop.eventAt)}</span>}{loop.dueAt&&!loop.whenText&&!loop.deadlineDate&&!loop.eventDate&&<span>⏰ {formatDate(loop.dueAt)}</span>}{isDone&&<span>✓ Закрыто {formatDate(loop.completedAt)}</span>}</div>
   {commitmentBadge(loop)&&<p className="agreement-state">{commitmentBadge(loop)}</p>}
  {loop.kind==='plan'&&<p className="agreement-state">{proposal?'Встреча или передача пока предложена, но не подтверждена.':loop.agreementStatus==='confirmed'?'Договорённость подтверждена.':'Не удалось установить, подтверждены ли детали.'}</p>}
   {nextStep&&<div className="detail-next-step"><small>Следующий шаг</small><strong>{nextStep}</strong></div>}
