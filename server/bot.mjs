@@ -6,6 +6,7 @@ import { resolveAIConfig } from './ai-provider.mjs';
 import { addLoop, readLoops, readSpaces, readMeaningCorrections, updateLoop } from './store.mjs';
 import { transcribeTelegramFile } from './transcribe.mjs';
 import { allowRequest } from './rate-limit.mjs';
+import { reminderAt } from './temporal.mjs';
 
 const token = process.env.BOT_TOKEN ?? process.env.TELEGRAM_BOT_TOKEN;
 if (!token) throw new Error('BOT_TOKEN is missing in .env');
@@ -86,13 +87,14 @@ async function sendDueReminders() {
   const now = Date.now();
   const loops = await readLoops();
   for (const loop of loops) {
-    if (!loop.ownerId || !loop.dueAt || loop.agreementStatus === 'proposed' || loop.agreementStatus === 'unknown' || loop.type === 'saved' || loop.status === 'done' || loop.status === 'dismissed' || loop.remindedAt) continue;
-    const due = new Date(loop.dueAt).getTime();
+    const trigger = reminderAt(loop);
+    if (!loop.ownerId || !trigger || loop.remindedAt) continue;
+    const due = new Date(trigger).getTime();
     if (!Number.isFinite(due) || due > now || due < now - reminderGraceMs) continue;
     try {
       const prefix = loop.status === 'snoozed' ? '⏰ Пора вернуть в внимание' : loop.type === 'event' ? '📅 Сейчас' : '⏰ Напоминание';
       await bot.api.sendMessage(loop.ownerId, `${prefix}\n\n${loop.title}${loop.person?.name ? `\n${loop.person.name}` : ''}`, { reply_markup: appKeyboard() });
-      await updateLoop(loop.id, { remindedAt: new Date().toISOString(), status: loop.status === 'snoozed' ? 'open' : loop.status }, String(loop.ownerId));
+      await updateLoop(loop.id, { remindedAt: new Date().toISOString(), status: loop.status === 'snoozed' ? 'open' : loop.status, snoozedUntil: loop.status === 'snoozed' ? null : loop.snoozedUntil }, String(loop.ownerId));
     } catch (error) {
       console.error('Reminder failed:', loop.id, error);
     }
