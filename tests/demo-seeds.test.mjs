@@ -32,3 +32,30 @@ test('/demo never accepts an unknown owner identity', () => {
  assert.throws(()=>makeDemoLoops(''),/Telegram owner ID/);
  assert.throws(()=>makeDemoLoops('not-a-number'),/Telegram owner ID/);
 });
+
+test('/demo clear removes only tagged records owned by the requesting Telegram account', async (t) => {
+ const fs=await import('node:fs/promises');
+ const os=await import('node:os');
+ const path=await import('node:path');
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'loop-demo-'));
+ const old=process.env.DATA_DIR;process.env.DATA_DIR=dir;
+ t.after(async()=>{
+  if(old===undefined)delete process.env.DATA_DIR;else process.env.DATA_DIR=old;
+  await fs.rm(dir,{recursive:true,force:true});
+ });
+ const store=await import(`../server/store.mjs?demo_test=${Date.now()}`);
+ const records=makeDemoLoops('123456789',{now:new Date('2026-10-12T03:46:00+05:00'),timeZone:'Asia/Yekaterinburg'});
+ for(const item of records)await store.addLoop(item);
+ const otherOwner=makeDemoLoops('987654321',{now:new Date('2026-10-12T03:46:00+05:00'),timeZone:'Asia/Yekaterinburg'});
+ for(const item of otherOwner)await store.addLoop(item);
+ const actual={...records[1],id:crypto.randomUUID(),seedTag:undefined,source:{...records[1].source,messageId:55},title:'Настоящие документы'};
+ await store.addLoop(actual);
+ assert.equal((await store.readLoops('123456789')).length,3);
+ assert.equal(await store.clearDemoLoops('123456789'),2);
+ const remaining=await store.readLoops('123456789');
+ assert.equal(remaining.length,1);
+ assert.equal(remaining[0].title,'Настоящие документы');
+ assert.equal((await store.readLoops('987654321')).length,2);
+ assert.equal(await store.clearDemoLoops('123456789'),0);
+ await assert.rejects(()=>store.clearDemoLoops('local-dev'),/Telegram-аккаунт/);
+});
