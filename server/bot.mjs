@@ -123,7 +123,7 @@ bot.command('help', (ctx) => ctx.reply('Перешли мне чужое соо�
 // The command is opt-in and seeds only the sender's own Telegram account.
 bot.command('demo', async (ctx) => {
   const ownerId = String(ctx.from?.id ?? '');
-  if (!/^\\d{4,20}$/.test(ownerId)) return ctx.reply('Не удалось определить Telegram-аккаунт.');
+  if (!/^\d{4,20}$/.test(ownerId)) return ctx.reply('Не удалось определить Telegram-аккаунт.');
   const timeZone = process.env.LOOP_TIMEZONE || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const examples = makeDemoLoops(ownerId, { timeZone });
   const existing = await readLoops(ownerId);
