@@ -21,7 +21,18 @@ export function meaningPatch(choice, title, loop) {
     saved: { type:'saved',kind:'note',agreementStatus:'not_applicable',nextAction:'none',nextActionText:null,dueAt:null,whenText:null }
   };
   const state = states[choice];
-  return { ...state, title:name, ...(state.type==='saved'?{memoryCategory:loop?.memoryCategory??undefined}:{}), status:loop?.status==='done'?'done':'open' };
+  const changed = meaningChoiceFor(loop) !== choice;
+  // Changing meaning must not carry a task deadline into a meeting,
+  // or turn a past event time into a fake task deadline.
+  const clearOtherSchedule = changed ? {
+    deadlineDate: null, deadlineAt: null, eventDate: null, eventAt: null,
+    remindedAt: null
+  } : {};
+  return {
+    ...clearOtherSchedule, ...state, title:name,
+    ...(state.type==='saved'?{memoryCategory:loop?.memoryCategory??undefined}:{}),
+    status:loop?.status==='done'?'done':'open'
+  };
 }
 
 export function relevantMeaningCorrections(text, author, examples = [], limit = 3) {
