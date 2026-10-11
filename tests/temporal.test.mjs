@@ -47,3 +47,12 @@ test('legacy dueAt is not safe evidence of a missed obligation',()=>{
  assert.equal(temporalStatus({...task,dueAt:'2026-10-11T10:00:00+05:00'},now,'Asia/Yekaterinburg'),null);
  assert.equal(temporalStatus({...task,status:'snoozed',dueAt:'2026-10-11T10:00:00+05:00'},now,'Asia/Yekaterinburg'),null);
 });
+
+test('date-only model output cannot sneak in a fabricated clock time',()=>{
+ const item={deadlineDate:'2026-10-16',deadlineAt:'2026-10-16T12:00:00+05:00'};
+ assert.deepEqual(acceptedSchedule(item,task,'Отправь документы до пятницы'),{deadlineDate:'2026-10-16'});
+ assert.deepEqual(acceptedSchedule(item,task,'Отправь документы в пятницу к 18:00'),item);
+ const meeting={eventDate:'2026-10-17',eventAt:'2026-10-17T12:00:00+05:00'};
+ assert.deepEqual(acceptedSchedule(meeting,event,'Встречаемся в субботу'),{eventDate:'2026-10-17'});
+ assert.deepEqual(acceptedSchedule(meeting,event,'Встречаемся в субботу в 12:00'),meeting);
+});
