@@ -58,12 +58,15 @@ export function acceptedSchedule(item, normalized, text) {
  // accepted unless the original message contains a date/time expression.
  const evidence=/(?:сегодня|завтра|послезавтра|понедельник|вторник|среду|четверг|пятниц|суббот|воскресень|\d{1,2}[./-]\d{1,2}|\d{1,2}\s+(?:числа|октябр|ноябр|декабр|январ|феврал|март|апрел|ма[йя]|июн|июл|август|сентябр))/iu.test(text??'');
  if (!evidence) return output;
+ // Do not accept an invented 12:00 for "до пятницы" or "в субботу".
+ // Exact moments need independent clock evidence in the original message.
+ const clock=/(?:\d{1,2}[:.]\d{2}|(?:в|к|до)\s+(?:\d{1,2}(?:\s+час(?:а|ов)?)?|час|полдень|полночь|два|три|четыре|пять|шесть|семь|восемь|девять|десять|одиннадцать|двенадцать)(?:\s|$|[.,!]))/iu.test(text??'');
  if (supportsDeadline(normalized)) {
   if (validDate(item.deadlineDate)) output.deadlineDate=item.deadlineDate;
-  if (validInstant(item.deadlineAt)) output.deadlineAt=item.deadlineAt;
+  if (clock && validInstant(item.deadlineAt)) output.deadlineAt=item.deadlineAt;
  } else if (isConfirmedEvent(normalized)) {
   if (validDate(item.eventDate)) output.eventDate=item.eventDate;
-  if (validInstant(item.eventAt)) output.eventAt=item.eventAt;
+  if (clock && validInstant(item.eventAt)) output.eventAt=item.eventAt;
  }
  return output;
 }
