@@ -62,3 +62,13 @@ test('corrections are private per Telegram owner, persisted, and capped',async t
  const final=await store.readMeaningCorrections(ownerA);
  assert.equal(final.find(item=>item.text===base.source.text).corrected.type,'saved');
 });
+
+test('changing card type removes previous incompatible deadlines and event dates',()=>{
+ const original={type:'event',kind:'plan',agreementStatus:'confirmed',title:'Встреча',status:'open',eventDate:'2026-10-17',eventAt:'2026-10-17T19:00:00+05:00'};
+ const edited=meaningPatch('todo','Привезти вещи',original);
+ assert.equal(edited.eventDate,null);
+ assert.equal(edited.eventAt,null);
+ assert.equal(edited.deadlineDate,null);
+ const rename=meaningPatch('meeting-confirmed','Встреча у вокзала',original);
+ assert.equal(Object.hasOwn(rename,'eventDate'),false);
+});
