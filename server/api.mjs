@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { SpaceError, createSpace, deleteSpace, editSpace, readLoops, readSpaces, recordSpaceCorrection, rememberMeaningCorrection, updateLoop } from './store.mjs';
 import { meaningPatch } from './meaning-memory.mjs';
+import { isConfirmedEvent, supportsDeadline, validDate, validInstant } from './temporal.mjs';
 import { searchMemory } from './memory-search.mjs';
 import { resolveRequestUser } from './telegram-auth.mjs';
 import { allowRequest } from './rate-limit.mjs';
@@ -102,6 +103,27 @@ const server = http.createServer(async (req, res) => {
       const url = new URL(req.url, `http://${req.headers.host ?? 'localhost'}`);
       const query = url.searchParams.get('q')?.trim().slice(0, 300) ?? '';
       return send(res, 200, await searchMemory(query, await readLoops(user.id)));
+    }
+
+    const scheduleMatch = req.url?.match(/^\/loops\/([^/]+)\/schedule$/);
+    if (req.method === 'POST' && scheduleMatch) {
+      const body = await readJson(req, 2000);
+      if (!body || typeof body !== 'object' || Array.isArray(body)) throw new SpaceError('Неверный формат срока.');
+      const current = (await readLoops(user.id)).find(item => item.id === decodeURIComponent(scheduleMatch[1]));
+      if (!current) return send(res, 404, { error: 'Карточка не найдена.' });
+      const kind = body.kind;
+      if (kind !== 'deadline' && kind !== 'event') throw new SpaceError('Неизвестный тип даты.');
+      if (kind === 'deadline' && !supportsDeadline(current)) throw new SpaceError('Для этой карточки нельзя задать срок.');
+      if (kind === 'event' && !isConfirmedEvent(current)) throw new SpaceError('Сначала подтверди встречу.');
+      const date = body.date === null || body.date === '' ? null : body.date;
+      const at = body.at === null || body.at === '' ? null : body.at;
+      if (date !== null && !validDate(date)) throw new SpaceError('Неверная дата.');
+      if (at !== null && (!validInstant(at) || !date)) throw new SpaceError('Неверное время.');
+      const patch = kind === 'deadline'
+        ? { deadlineDate: date, deadlineAt: at, dueAt: null, remindedAt: null }
+        : { eventDate: date, eventAt: at, dueAt: null, remindedAt: null };
+      const updated = await updateLoop(current.id, patch, user.id);
+      return send(res, 200, updated);
     }
 
     const correctionMatch = req.url?.match(/^\/loops\/([^/]+)\/correct$/);
