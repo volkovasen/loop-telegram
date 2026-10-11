@@ -16,8 +16,10 @@ export function isConfirmedEvent(loop) {
  return loop?.kind === 'plan' && loop?.agreementStatus === 'confirmed' && loop?.type === 'event';
 }
 function localDay(value, zone) {
- return new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'})
-  .format(new Date(value));
+ const parts = new Intl.DateTimeFormat('en-US',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'})
+  .formatToParts(new Date(value));
+ const get = key => parts.find(part=>part.type===key)?.value;
+ return `${get('year')}-${get('month')}-${get('day')}`;
 }
 export function temporalStatus(loop, now = Date.now(), zone = 'UTC') {
  if (!loop || ['done','dismissed'].includes(loop.status)) return null;
