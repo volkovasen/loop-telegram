@@ -4,7 +4,7 @@ import { classifyMessage } from './classifier.mjs';
 import { classifyWithAI } from './ai-classifier.mjs';
 import { resolveAIConfig } from './ai-provider.mjs';
 import { makeDemoLoops } from './demo-seeds.mjs';
-import { addLoop, readLoops, readSpaces, readMeaningCorrections, updateLoop } from './store.mjs';
+import { addLoop, clearDemoLoops, readLoops, readSpaces, readMeaningCorrections, updateLoop } from './store.mjs';
 import { transcribeTelegramFile } from './transcribe.mjs';
 import { allowRequest } from './rate-limit.mjs';
 import { reminderAt } from './temporal.mjs';
@@ -124,6 +124,11 @@ bot.command('help', (ctx) => ctx.reply('Перешли мне чужое соо�
 bot.command('demo', async (ctx) => {
   const ownerId = String(ctx.from?.id ?? '');
   if (!/^\d{4,20}$/.test(ownerId)) return ctx.reply('Не удалось определить Telegram-аккаунт.');
+  if (String(ctx.match ?? '').trim().toLowerCase() === 'clear') {
+    const removed = await clearDemoLoops(ownerId);
+    return ctx.reply(removed ? `🧹 Убрано ${removed} тестовых карточек. Настоящие задачи не затронуты.` : 'Тестовых карточек нет.');
+  }
+  if (String(ctx.match ?? '').trim()) return ctx.reply('Используй /demo для двух карточек или /demo clear для очистки.');
   const timeZone = process.env.LOOP_TIMEZONE || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const examples = makeDemoLoops(ownerId, { timeZone });
   const existing = await readLoops(ownerId);
