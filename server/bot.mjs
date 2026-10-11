@@ -3,6 +3,7 @@ import { Bot, InlineKeyboard } from 'grammy';
 import { classifyMessage } from './classifier.mjs';
 import { classifyWithAI } from './ai-classifier.mjs';
 import { resolveAIConfig } from './ai-provider.mjs';
+import { makeDemoLoops } from './demo-seeds.mjs';
 import { addLoop, readLoops, readSpaces, readMeaningCorrections, updateLoop } from './store.mjs';
 import { transcribeTelegramFile } from './transcribe.mjs';
 import { allowRequest } from './rate-limit.mjs';
@@ -116,7 +117,26 @@ async function sendDueReminders() {
 
 bot.command('start', (ctx) => ctx.reply('LOOP включён. Перешли сюда сообщение, голосовое или кружок, который нельзя потерять. Я превращу его в действие, ожидание, событие или память.', { reply_markup: appKeyboard() }));
 bot.command('app', (ctx) => webAppUrl ? ctx.reply('Твоя память и незакрытые хвосты здесь:', { reply_markup: appKeyboard() }) : ctx.reply('Mini App пока не подключён на сервере.'));
-bot.command('help', (ctx) => ctx.reply('Перешли мне чужое сообщение, голосовое или кружок. LOOP найдёт, что требует внимания, и сохранит источник. Команда /app открывает приложение.', { reply_markup: appKeyboard() }));
+bot.command('help', (ctx) => ctx.reply('Перешли мне чужое сообщение, голосовое или кружок. LOOP найдёт, что требует внимания, и сохранит источник. Команда /app открывает приложение. Команда /demo добавляет две тестовые задачи.', { reply_markup: appKeyboard() }));
+
+// No AI calls, no fabricated Telegram forwarding, no cost.
+// The command is opt-in and seeds only the sender's own Telegram account.
+bot.command('demo', async (ctx) => {
+  const ownerId = String(ctx.from?.id ?? '');
+  if (!/^\\d{4,20}$/.test(ownerId)) return ctx.reply('Не удалось определить Telegram-аккаунт.');
+  const timeZone = process.env.LOOP_TIMEZONE || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const examples = makeDemoLoops(ownerId, { timeZone });
+  const existing = await readLoops(ownerId);
+  const created = [];
+  for (const example of examples) {
+    if (existing.some(item => item.seedTag === example.seedTag)) continue;
+    created.push(await addLoop(example));
+  }
+  const text = created.length
+    ? '🧪 Тестовые карточки добавлены в LOOP:\n\n1. Договориться о встрече с Ариной и Кириллом: можно менять участников и подтверждать встречу.\n2. Отправить документы: срок был вчера, должна появиться отметка «Просрочено».\n\nОбе помечены «ТЕСТ», это не реальные поручения.'
+    : '🧪 Обе тестовые карточки уже есть в твоём LOOP. Они не дублируются при повторной команде.';
+  await ctx.reply(text, { reply_markup: appKeyboard() });
+});
 
 bot.on('message', async (ctx) => {
   const userId = String(ctx.from?.id ?? 'anonymous');
@@ -145,7 +165,7 @@ bot.on('message', async (ctx) => {
 });
 
 bot.catch((error) => console.error('Bot error:', error.error));
-await bot.api.setMyCommands([{ command: 'app', description: 'Открыть LOOP' }, { command: 'help', description: 'Как пользоваться' }]).catch((error) => console.error('Failed to set commands:', error));
+await bot.api.setMyCommands([{ command: 'app', description: 'Открыть LOOP' }, { command: 'demo', description: 'Добавить две тестовые задачи' }, { command: 'help', description: 'Как пользоваться' }]).catch((error) => console.error('Failed to set commands:', error));
 if (webAppUrl) await bot.api.setChatMenuButton({ menu_button: { type: 'web_app', text: 'Открыть LOOP', web_app: { url: webAppUrl } } }).catch((error) => console.error('Failed to set menu button:', error));
 setInterval(() => sendDueReminders().catch((error) => console.error('Reminder sweep failed:', error)), 30_000).unref?.();
 const textAI = resolveAIConfig();
