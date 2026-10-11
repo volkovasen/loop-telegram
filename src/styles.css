@@ -127,3 +127,28 @@
 .meaning-editor-actions button:disabled{opacity:.6}
 .meaning-cancel{background:#333a30;color:#e0e7d9}
 .meaning-save{background:#d9f99d;color:#1d2614}
+
+/* Functional inputs only; preserve the existing LOOP visual language. */
+.attention-tags .attention-late{border:1px solid #9c6946;color:#f3bc93;background:#3d2c22}
+.detail-schedule,.detail-participants{display:grid;gap:11px;border:1px solid #30382f;border-radius:14px;background:#20251f;padding:12px;margin:0 0 14px}
+.detail-schedule>strong,.detail-participants>strong{color:#e6ede2;font-size:13px}
+.detail-schedule-inputs{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.detail-schedule label,.detail-participants-form label,.detail-merge label{display:grid;gap:6px;color:#b3bdae;font-size:11px;font-weight:700;min-width:0}
+.detail-schedule input,.detail-participants input,.detail-merge select{width:100%;min-width:0;background:#151b15;border:1px solid #444e40;border-radius:10px;color:#edf2e8;padding:10px;font-size:13px}
+.detail-schedule input::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.7}
+.detail-schedule-actions,.detail-participants-form{display:flex;gap:8px;align-items:flex-end}
+.detail-schedule-actions button,.detail-participants-form button,.detail-merge>button{min-height:38px;padding:8px 11px;border:0;border-radius:10px;background:#353e31;color:#d9f99d;font-size:12px;font-weight:800;cursor:pointer}
+.detail-schedule-actions button:first-child,.detail-participants-form button{background:#d9f99d;color:#182110}
+.detail-schedule button:disabled,.detail-participants button:disabled{opacity:.55}
+.detail-schedule small,.detail-participants small{font-size:12px;line-height:1.35;color:#d9f99d}
+.detail-participants-list{display:flex;gap:7px;flex-wrap:wrap}
+.detail-participants-list>span,.detail-participant-row{display:inline-flex;align-items:center;gap:6px;border-radius:9px;border:1px solid #3a4635;padding:7px 10px;color:#dae3d2;font-size:12px}
+.detail-participant-row button{background:none;border:0;color:#dcb9a5;font-size:18px;cursor:pointer;padding:0 3px}
+.detail-participants-form label{flex:1}
+.detail-merge{display:grid;gap:8px;border-top:1px solid #333c31;padding-top:12px}
+.detail-related-sources{border-top:1px solid #333c31;padding-top:12px;display:grid;gap:8px}
+.detail-related-sources>strong{font-size:12px}
+.detail-related-sources blockquote{border:1px solid #303b2d;border-radius:11px;margin:0;padding:10px}
+.detail-related-sources blockquote small{color:#aeb8a7}
+.detail-related-sources blockquote p{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0 0;color:#c6cbc0;font-size:12px}
+@media(max-width:370px){.detail-schedule-inputs{grid-template-columns:1fr}}
