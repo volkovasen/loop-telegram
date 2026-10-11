@@ -126,9 +126,9 @@ ${JSON.stringify(examplesOfMeaning)}
         nextActionText: item.nextActionText,
         whenText: item.whenText,
         person: person ?? (author ? { name: author } : undefined),
-        // Accept old model responses and existing tests, but never treat
-        // legacy event dueAt as a task deadline.
-        dueAt: typeof item.dueAt === 'string' ? item.dueAt : undefined,
+        // New AI output must use explicit schedule fields. Legacy dueAt
+        // is ambiguous and may contain a fabricated noon reminder.
+        dueAt: undefined,
         ...schedule,
         space,
         spaceConfidence: space ? spaceConfidence : 0,
