@@ -87,6 +87,16 @@
 .spaces-save{background:#d9f99d;color:#192214}
 .spaces-save:disabled{opacity:.6}
 .spaces-cancel{background:#31372f;color:#e3ebdc}
+/* A save is not complete UX until the user can see that it succeeded. */
+.spaces-save-confirmation{display:flex;align-items:center;gap:10px;padding:12px 13px;border:1px solid #4c6140;border-radius:13px;background:#20291e;color:#e5f4d6;font-size:13px;font-weight:750;line-height:1.4}
+.spaces-save-confirmation>svg{flex-shrink:0;color:#d9f99d}
+.spaces-save-confirmation>span{flex:1;min-width:0;overflow-wrap:anywhere}
+.spaces-save-confirmation>button{flex:0 0 auto;display:grid;place-items:center;border:0;background:transparent;color:#acbba1;cursor:pointer;padding:5px;border-radius:8px}
+.spaces-save-confirmation>button:focus-visible{outline:2px solid #d9f99d;outline-offset:2px}
+.spaces-manage-row-confirmed{border-color:#647d4b;background:#273024}
+.spaces-manage-row strong{display:flex;align-items:center;gap:7px}
+.spaces-created-check{color:#d9f99d;flex-shrink:0}
+
 
 /* Keep the Spaces creator visible while topic chips scroll horizontally. */
 .spaces-bar{display:flex;gap:8px;align-items:flex-start}
