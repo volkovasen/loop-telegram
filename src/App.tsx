@@ -4,6 +4,7 @@ import type { LoopSpace, OpenLoop, SpaceDefinition } from './types/open-loop';
 import { SpacesSheet, UnassignedCard } from './spaces-ui';
 import { MeaningEditor } from './meaning-editor';
 import { ScheduleEditor, commitmentBadge, timeLabel } from './schedule-ui';
+import { ParticipantsEditor } from './participants-ui';
 
 // Prefer the same origin. Ignore legacy localhost overrides that break on a phone.
 const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
@@ -70,7 +71,11 @@ export function App(){
  const history=useMemo(()=>loops.filter(l=>l.status==='done').sort((a,b)=>(b.completedAt??'').localeCompare(a.completedAt??'')),[loops]);
  const allMemory=useMemo(()=>loops.filter(l=>l.type==='saved'&&l.status!=='dismissed'),[loops]);
  const memory=memoryQuery.trim()?memoryResults??[]:allMemory;
- const people=useMemo(()=>{const map=new Map<string,OpenLoop[]>();for(const loop of loops){const name=loop.person?.name;if(!name)continue;map.set(name,[...(map.get(name)??[]),loop])}return[...map.entries()].sort((a,b)=>{const oa=a[1].filter(x=>x.status==='open'||x.status==='suggested').length,ob=b[1].filter(x=>x.status==='open'||x.status==='suggested').length;return ob-oa||a[0].localeCompare(b[0],'ru')})},[loops]);
+ const people=useMemo(()=>{const map=new Map<string,OpenLoop[]>();for(const loop of loops){
+  if(loop.mergedInto)continue;
+  const names=new Set([loop.person?.name,...(loop.participants??[]).map(p=>p.name)].filter((x):x is string=>Boolean(x)));
+  for(const name of names)map.set(name,[...(map.get(name)??[]),loop]);
+ }return[...map.entries()].sort((a,b)=>{const oa=a[1].filter(x=>x.status==='open'||x.status==='suggested').length,ob=b[1].filter(x=>x.status==='open'||x.status==='suggested').length;return ob-oa||a[0].localeCompare(b[0],'ru')})},[loops]);
  async function patchLoop(id:string,patch:Partial<OpenLoop>):Promise<boolean>{
   setActionError('');
   try{
@@ -98,6 +103,31 @@ export function App(){
  async function assignSpace(loop:OpenLoop,name:string){if(loop.id.startsWith('demo-'))return;await patchLoop(loop.id,{space:name||null,spaceConfidence:name?1:0})}
  async function done(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;const completedAt=new Date().toISOString();if(await patchLoop(loop.id,{status:'done',completedAt}))setSelected(null)}
  async function snooze(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;const until=new Date();until.setDate(until.getDate()+1);until.setHours(9,0,0,0);if(await patchLoop(loop.id,{status:'snoozed',snoozedUntil:until.toISOString(),remindedAt:null}))setSelected(null)}
+ async function saveParticipant(loop:OpenLoop,name:string):Promise<string|null>{
+  return updatePeople(loop,'POST','participants',{name});
+ }
+ async function removeParticipant(loop:OpenLoop,name:string):Promise<string|null>{
+  return updatePeople(loop,'DELETE','participants/'+encodeURIComponent(name));
+ }
+ async function mergeMeeting(loop:OpenLoop,otherId:string):Promise<string|null>{
+  const error=await updatePeople(loop,'POST','merge',{otherId});
+  if(!error)await loadLoops();
+  return error;
+ }
+ async function updatePeople(loop:OpenLoop,method:'POST'|'DELETE',action:string,payload?:object):Promise<string|null>{
+  try{
+   const res=await fetch(`${API_URL}/loops/${encodeURIComponent(loop.id)}/${action}`,{
+    method,headers:{'Content-Type':'application/json',...authHeaders()},
+    ...(payload?{body:JSON.stringify(payload)}:{})
+   });
+   const result=await res.json();
+   if(!res.ok)return result.error??'Не удалось обновить участников';
+   const updated=result as OpenLoop;
+   setLoops(items=>items.map(item=>item.id===updated.id?updated:item));
+   setSelected(item=>item?.id===updated.id?updated:item);
+   return null;
+  }catch{return 'Не удалось связаться с LOOP. Повтори попытку.';}
+ }
  async function saveSchedule(loop:OpenLoop,kind:'deadline'|'event',date:string|null,at:string|null):Promise<string|null>{
   try{
    const res=await fetch(`${API_URL}/loops/${encodeURIComponent(loop.id)}/schedule`,{
@@ -122,7 +152,7 @@ export function App(){
  {tab==='people'&&<PeopleView people={people} selectedName={personName} onSelectName={setPersonName} onSelectLoop={setSelected}/>} 
  {tab==='memory'&&<MemoryView query={memoryQuery} onQuery={setMemoryQuery} loops={memory} searching={memorySearching} onSelect={setSelected}/>} 
  <nav><button className={tab==='today'?'active':''} onClick={()=>setTab('today')}><Clock3/>Сегодня</button><button className={tab==='people'?'active':''} onClick={()=>setTab('people')}><Users/>Люди</button><button className={tab==='memory'?'active':''} onClick={()=>setTab('memory')}><Brain/>Память</button></nav>
- {selected&&<LoopDetail loop={selected} spaces={spaceDefinitions} onAssign={assignSpace} onCorrect={correctMeaning} onSchedule={saveSchedule} onConfirm={confirmPlan} onDismiss={dismissPlan} onClose={()=>setSelected(null)} onDone={done} onSnooze={snooze}/>}
+ {selected&&<LoopDetail loop={selected} candidates={loops.filter(l=>l.id!==selected.id&&!l.mergedInto&&l.status!=='dismissed'&&(l.kind==='plan'||l.type==='event'))} spaces={spaceDefinitions} onAssign={assignSpace} onCorrect={correctMeaning} onSchedule={saveSchedule} onAddParticipant={saveParticipant} onRemoveParticipant={removeParticipant} onMerge={mergeMeeting} onConfirm={confirmPlan} onDismiss={dismissPlan} onClose={()=>setSelected(null)} onDone={done} onSnooze={snooze}/>}
  {spaceSheet&&<SpacesSheet spaces={spaceDefinitions} onClose={()=>setSpaceSheet(false)} onSave={saveSpace} onDelete={removeSpace}/>}</main>
 }
 function FirstRunEmpty(){
@@ -164,7 +194,7 @@ function TodayView({loops,history,space,spaces,firstRun,onSpace,onManage,onSelec
   </>}
  </>;
 }
-function PeopleView({people,selectedName,onSelectName,onSelectLoop}:{people:[string,OpenLoop[]][];selectedName:string|null;onSelectName:(n:string|null)=>void;onSelectLoop:(l:OpenLoop)=>void}){if(selectedName){const items=people.find(([n])=>n===selectedName)?.[1]??[],open=items.filter(l=>l.status==='open'||l.status==='suggested'||l.status==='snoozed'),saved=items.filter(l=>l.type==='saved'),done=items.filter(l=>l.status==='done'),chatLoop=items.find(l=>telegramLink(l)),chat=chatLoop?telegramLink(chatLoop):undefined;return <section className="person-page"><button className="back" onClick={()=>onSelectName(null)}>← Все люди</button><div className="person-hero"><div className="avatar">{selectedName.slice(0,1).toUpperCase()}</div><div><h2>{selectedName}</h2><p>{open.length} открыто · {saved.length} в памяти</p></div></div>{chat&&<a className="wide-action" href={chat}>Открыть чат в Telegram</a>}<PersonSection title="Незакрыто" loops={open.filter(x=>x.type!=='saved')} onSelect={onSelectLoop}/><PersonSection title="Советовал / сохранено" loops={saved} onSelect={onSelectLoop}/><PersonSection title="Закрыто" loops={done.slice(0,6)} onSelect={onSelectLoop}/></section>}return <section className="people-list">{people.map(([name,items])=>{const openCount=items.filter(l=>l.status==='open'||l.status==='suggested').length,savedCount=items.filter(l=>l.type==='saved').length;return <button key={name} className="person-row" onClick={()=>onSelectName(name)}><div className="avatar">{name.slice(0,1).toUpperCase()}</div><span><strong>{name}</strong><small>{openCount} открыто · {savedCount} сохранено</small></span><ChevronRight size={18}/></button>})}{!people.length&&<div className="empty"><Users size={26}/><strong>Людей пока нет</strong><span>Перешли сообщение от человека, и LOOP соберёт контекст.</span></div>}</section>}
+function PeopleView({people,selectedName,onSelectName,onSelectLoop}:{people:[string,OpenLoop[]][];selectedName:string|null;onSelectName:(n:string|null)=>void;onSelectLoop:(l:OpenLoop)=>void}){if(selectedName){const items=people.find(([n])=>n===selectedName)?.[1]??[],open=items.filter(l=>l.status==='open'||l.status==='suggested'||l.status==='snoozed'),saved=items.filter(l=>l.type==='saved'),done=items.filter(l=>l.status==='done'),chatLoop=items.find(l=>l.person?.name===selectedName&&telegramLink(l)),chat=chatLoop?telegramLink(chatLoop):undefined;return <section className="person-page"><button className="back" onClick={()=>onSelectName(null)}>← Все люди</button><div className="person-hero"><div className="avatar">{selectedName.slice(0,1).toUpperCase()}</div><div><h2>{selectedName}</h2><p>{open.length} открыто · {saved.length} в памяти</p></div></div>{chat&&<a className="wide-action" href={chat}>Открыть чат в Telegram</a>}<PersonSection title="Незакрыто" loops={open.filter(x=>x.type!=='saved')} onSelect={onSelectLoop}/><PersonSection title="Советовал / сохранено" loops={saved} onSelect={onSelectLoop}/><PersonSection title="Закрыто" loops={done.slice(0,6)} onSelect={onSelectLoop}/></section>}return <section className="people-list">{people.map(([name,items])=>{const openCount=items.filter(l=>l.status==='open'||l.status==='suggested').length,savedCount=items.filter(l=>l.type==='saved').length;return <button key={name} className="person-row" onClick={()=>onSelectName(name)}><div className="avatar">{name.slice(0,1).toUpperCase()}</div><span><strong>{name}</strong><small>{openCount} открыто · {savedCount} сохранено</small></span><ChevronRight size={18}/></button>})}{!people.length&&<div className="empty"><Users size={26}/><strong>Людей пока нет</strong><span>Перешли сообщение от человека, и LOOP соберёт контекст.</span></div>}</section>}
 function PersonSection({title,loops,onSelect}:{title:string;loops:OpenLoop[];onSelect:(l:OpenLoop)=>void}){if(!loops.length)return null;return <div className="person-section"><div className="section-title">{title}</div>{loops.map(loop=><button key={loop.id} className="mini-loop" onClick={()=>onSelect(loop)}><span>{meta[loop.type].icon}</span><span><strong>{loop.title}</strong><small>{loop.space??'Без темы'}{loop.dueAt?` · ${formatDate(loop.dueAt)}`:''}</small></span><ChevronRight size={16}/></button>)}</div>}
 function MemoryView({query,onQuery,loops,searching,onSelect}:{query:string;onQuery:(v:string)=>void;loops:OpenLoop[];searching:boolean;onSelect:(l:OpenLoop)=>void}){return <><label className="search-box"><Search size={18}/><input value={query} onChange={e=>onQuery(e.target.value)} placeholder="Берлин, фильм, где поесть…"/></label><div className="memory-hint">{searching?'LOOP вспоминает…':'Пиши хоть одно слово, имя, место или обычный вопрос.'}</div><section className="memory-grid">{loops.map(loop=><button key={loop.id} className="memory-card" onClick={()=>onSelect(loop)}><div className="memory-top"><span>{loop.memoryCategory??'Сохранено'}</span><span>{loop.space??'Без темы'}</span></div><strong>{loop.title}</strong><small>{loop.person?.name?`От ${loop.person.name}`:'Из Telegram'}</small>{loop.source.text&&<p>“{loop.source.text}”</p>}</button>)}</section>{!searching&&!loops.length&&<div className="empty"><Brain size={26}/><strong>Ничего не нашлось</strong><span>Попробуй другое слово или формулировку.</span></div>}</>}
 function LoopCard({loop,onOpen}:{loop:OpenLoop;onOpen:()=>void}){
@@ -197,7 +227,11 @@ function LoopCard({loop,onOpen}:{loop:OpenLoop;onOpen:()=>void}){
   </div>}
  </article>
 }
-function LoopDetail({loop,spaces,onAssign,onCorrect,onSchedule,onConfirm,onDismiss,onClose,onDone,onSnooze}:{loop:OpenLoop;spaces:SpaceDefinition[];onAssign:(loop:OpenLoop,name:string)=>void;onCorrect:(loop:OpenLoop,choice:string,title:string)=>Promise<string|null>;onSchedule:(loop:OpenLoop,kind:'deadline'|'event',date:string|null,at:string|null)=>Promise<string|null>;onConfirm:(l:OpenLoop)=>void;onDismiss:(l:OpenLoop)=>void;onClose:()=>void;onDone:(l:OpenLoop)=>void;onSnooze:(l:OpenLoop)=>void}){
+function LoopDetail({loop,candidates,spaces,onAssign,onCorrect,onSchedule,onAddParticipant,onRemoveParticipant,onMerge,onConfirm,onDismiss,onClose,onDone,onSnooze}:{loop:OpenLoop;candidates:OpenLoop[];spaces:SpaceDefinition[];onAssign:(loop:OpenLoop,name:string)=>void;onCorrect:(loop:OpenLoop,choice:string,title:string)=>Promise<string|null>;onSchedule:(loop:OpenLoop,kind:'deadline'|'event',date:string|null,at:string|null)=>Promise<string|null>;
+ onAddParticipant:(loop:OpenLoop,name:string)=>Promise<string|null>;
+ onRemoveParticipant:(loop:OpenLoop,name:string)=>Promise<string|null>;
+ onMerge:(loop:OpenLoop,otherId:string)=>Promise<string|null>;
+ onConfirm:(l:OpenLoop)=>void;onDismiss:(l:OpenLoop)=>void;onClose:()=>void;onDone:(l:OpenLoop)=>void;onSnooze:(l:OpenLoop)=>void}){
  const chat=telegramLink(loop),calendar=googleCalendarLink(loop),m=meta[loop.type],isDone=loop.status==='done',isDemo=loop.id.startsWith('demo-');
  const proposal=loop.kind==='plan'&&(loop.agreementStatus==='proposed'||loop.agreementStatus==='unknown');
  const nextStep=actionHint(loop);
@@ -219,6 +253,10 @@ function LoopDetail({loop,spaces,onAssign,onCorrect,onSchedule,onConfirm,onDismi
    <option value="">Без темы</option>{spaces.map(item=><option key={item.id} value={item.name}>{item.name}</option>)}
   </select><small>Исправления помогают LOOP точнее распределять следующие сообщения.</small></label>}
   {loop.person&&<div className="detail-person"><div className="avatar">{loop.person.name.slice(0,1).toUpperCase()}</div><div><small>Человек</small><strong>{loop.person.name}</strong></div></div>}
+  {!isDemo&&loop.type!=='saved'&&<ParticipantsEditor loop={loop} candidates={(loop.kind==='plan'||loop.type==='event')?candidates:[]}
+   onAdd={name=>onAddParticipant(loop,name)}
+   onRemove={name=>onRemoveParticipant(loop,name)}
+   onMerge={id=>onMerge(loop,id)}/>}
   {loop.source.text&&<div className="source-block"><small>{loop.source.mediaKind?'Расшифровка':'Исходное сообщение'}</small><p>“{loop.source.text}”</p></div>}
   <div className="detail-actions">{chat&&<a href={chat}>Открыть чат в Telegram</a>}{calendar&&<a href={calendar} target="_blank" rel="noreferrer"><CalendarPlus size={17}/>В календарь</a>}</div>
   {isDemo&&<p style={{color:'#9da29b',fontSize:12}}>Демо-карточка. Действия не сохраняются.</p>}
