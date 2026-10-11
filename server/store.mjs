@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { DEFAULT_SPACES, normalizeExampleText } from './space-rules.mjs';
+import { normalizePerson, personKey, dedupeParticipants, mergePlanRecords } from './participants.mjs';
 
 // Keep all user data on Railway's persistent volume, never on its ephemeral app disk.
 const railwayVolume = process.env.RAILWAY_VOLUME_MOUNT_PATH;
@@ -250,5 +251,55 @@ export async function rememberMeaningCorrection(ownerId,loop){
   const tmp=`${meaningFile}.tmp`;
   await fs.writeFile(tmp,JSON.stringify([...other,...output],null,2),'utf8');
   await fs.rename(tmp,meaningFile);
+ });
+}
+
+export async function addLoopParticipant(ownerId,id,rawName){
+ return enqueueWrite(async()=>{
+  const person=normalizePerson(rawName);
+  const loops=await readAll();
+  const index=loops.findIndex(loop=>loop.id===id&&String(loop.ownerId)===String(ownerId)&&!loop.mergedInto);
+  if(index<0)throw new SpaceError('Карточка не найдена.',404);
+  const loop=loops[index];
+  const all=dedupeParticipants(loop.person,[...(loop.participants??[]),person]);
+  if(all.length>=25 && !all.some(item=>personKey(item)===personKey(person)))throw new SpaceError('Не больше 25 участников.');
+  loops[index]={...loop,participants:all,updatedAt:new Date().toISOString()};
+  await writeAll(loops);
+  return loops[index];
+ });
+}
+
+export async function removeLoopParticipant(ownerId,id,rawName){
+ return enqueueWrite(async()=>{
+  const name=normalizePerson(rawName);
+  const loops=await readAll();
+  const index=loops.findIndex(loop=>loop.id===id&&String(loop.ownerId)===String(ownerId)&&!loop.mergedInto);
+  if(index<0)throw new SpaceError('Карточка не найдена.',404);
+  loops[index]={
+   ...loops[index],
+   participants:(loops[index].participants??[]).filter(item=>personKey(item)!==personKey(name)),
+   updatedAt:new Date().toISOString()
+  };
+  await writeAll(loops);
+  return loops[index];
+ });
+}
+
+export async function mergeLoopPlans(ownerId,targetId,otherId){
+ return enqueueWrite(async()=>{
+  const loops=await readAll();
+  const owner=String(ownerId);
+  const primaryIndex=loops.findIndex(item=>item.id===targetId&&String(item.ownerId)===owner);
+  const secondaryIndex=loops.findIndex(item=>item.id===otherId&&String(item.ownerId)===owner);
+  if(primaryIndex<0||secondaryIndex<0)throw new SpaceError('Одна из карточек не найдена.',404);
+  const primary=loops[primaryIndex],secondary=loops[secondaryIndex];
+  if(secondary.mergedInto===targetId)return primary;
+  let merged;
+  try{merged=mergePlanRecords(primary,secondary);}
+  catch(error){throw new SpaceError(error.message);}
+  loops[primaryIndex]=merged;
+  loops[secondaryIndex]={...secondary,status:'dismissed',mergedInto:targetId,updatedAt:new Date().toISOString()};
+  await writeAll(loops);
+  return merged;
  });
 }
