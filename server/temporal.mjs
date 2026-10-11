@@ -57,7 +57,7 @@ export function acceptedSchedule(item, normalized, text) {
  const output={};
  // A model can propose normalized ISO dates, but no date at all must be
  // accepted unless the original message contains a date/time expression.
- const evidence=/(?:сегодня|завтра|послезавтра|\b(?:понедельник|вторник|среду|четверг|пятниц|суббот|воскресень)|\b\d{1,2}[./-]\d{1,2}|\b\d{1,2}\s+(?:числа|октябр|ноябр|декабр|январ|феврал|март|апрел|ма[йя]|июн|июл|август|сентябр))/iu.test(text??'');
+ const evidence=/(?:сегодня|завтра|послезавтра|понедельник|вторник|среду|четверг|пятниц|суббот|воскресень|\d{1,2}[./-]\d{1,2}|\d{1,2}\s+(?:числа|октябр|ноябр|декабр|январ|феврал|март|апрел|ма[йя]|июн|июл|август|сентябр))/iu.test(text??'');
  if (!evidence) return output;
  if (supportsDeadline(normalized)) {
   if (validDate(item.deadlineDate)) output.deadlineDate=item.deadlineDate;
