@@ -2,7 +2,7 @@ import 'dotenv/config';
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { SpaceError, createSpace, deleteSpace, editSpace, readLoops, readSpaces, recordSpaceCorrection, rememberMeaningCorrection, updateLoop } from './store.mjs';
+import { SpaceError, addLoopParticipant, createSpace, deleteSpace, editSpace, mergeLoopPlans, readLoops, readSpaces, recordSpaceCorrection, rememberMeaningCorrection, removeLoopParticipant, updateLoop } from './store.mjs';
 import { meaningPatch } from './meaning-memory.mjs';
 import { isConfirmedEvent, supportsDeadline, validDate, validInstant } from './temporal.mjs';
 import { searchMemory } from './memory-search.mjs';
@@ -103,6 +103,23 @@ const server = http.createServer(async (req, res) => {
       const url = new URL(req.url, `http://${req.headers.host ?? 'localhost'}`);
       const query = url.searchParams.get('q')?.trim().slice(0, 300) ?? '';
       return send(res, 200, await searchMemory(query, await readLoops(user.id)));
+    }
+
+    const peopleMatch=req.url?.match(/^\/loops\/([^/]+)\/participants$/);
+    if(req.method==='POST' && peopleMatch){
+      const input=await readJson(req,2000);
+      if(!input || typeof input!=='object' || Array.isArray(input))throw new SpaceError('Неверный участник.');
+      return send(res,200,await addLoopParticipant(user.id,decodeURIComponent(peopleMatch[1]),input.name));
+    }
+    const personDeleteMatch=req.url?.match(/^\/loops\/([^/]+)\/participants\/([^/]+)$/);
+    if(req.method==='DELETE' && personDeleteMatch){
+      return send(res,200,await removeLoopParticipant(user.id,decodeURIComponent(personDeleteMatch[1]),decodeURIComponent(personDeleteMatch[2])));
+    }
+    const mergeMatch=req.url?.match(/^\/loops\/([^/]+)\/merge$/);
+    if(req.method==='POST' && mergeMatch){
+      const input=await readJson(req,2000);
+      if(!input || typeof input!=='object' || Array.isArray(input) || typeof input.otherId!=='string')throw new SpaceError('Выбери вторую карточку.');
+      return send(res,200,await mergeLoopPlans(user.id,decodeURIComponent(mergeMatch[1]),input.otherId));
     }
 
     const scheduleMatch = req.url?.match(/^\/loops\/([^/]+)\/schedule$/);
