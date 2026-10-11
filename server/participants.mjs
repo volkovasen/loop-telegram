@@ -22,7 +22,7 @@ export function mergePlanRecords(primary,secondary){
  if(!primary||!secondary||primary.id===secondary.id)throw new Error('Выбери две разные карточки.');
  if(primary.ownerId!==secondary.ownerId)throw new Error('Нельзя объединять чужие карточки.');
  if(primary.mergedInto||secondary.mergedInto)throw new Error('Карточка уже объединена с другой.');
- if(primary.status==='dismissed'||secondary.status==='dismissed')throw new Error('Закрытые карточки нельзя объединить.');
+ if(['dismissed','done'].includes(primary.status)||['dismissed','done'].includes(secondary.status))throw new Error('Завершённые карточки нельзя объединить.');
  const isPlan=loop=>loop.kind==='plan'||loop.type==='event';
  if(!isPlan(primary)||!isPlan(secondary))throw new Error('Объединять можно только встречи и договорённости.');
  const additional=[...(primary.participants??[]),secondary.person,...(secondary.participants??[])].filter(Boolean);
