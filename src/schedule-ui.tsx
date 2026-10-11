@@ -21,7 +21,7 @@ export function commitmentBadge(loop:OpenLoop, now=Date.now()){
  const task=loop.type!=='saved'&&loop.type!=='event'&&loop.kind!=='plan';
  const event=loop.type==='event'&&loop.kind==='plan'&&loop.agreementStatus==='confirmed';
  if(task){
-  const at=loop.deadlineAt || (loop.status!=='snoozed'?loop.dueAt:undefined);
+  const at=loop.deadlineAt;
   const overdue=at && Number.isFinite(Date.parse(at)) ? Date.parse(at)<now : validDay(loop.deadlineDate)? nowDay>loop.deadlineDate! : false;
   return overdue?(loop.type==='waiting'?'Обещание задерживается':'Просрочено'):null;
  }
@@ -43,7 +43,7 @@ export function ScheduleEditor({loop,onSave}:{
  const isEvent=loop.type==='event'&&loop.kind==='plan'&&loop.agreementStatus==='confirmed';
  const kind=isEvent?'event':'deadline';
  const initialDate=kind==='event'?loop.eventDate||localDate(loop.eventAt||loop.dueAt):
-  loop.deadlineDate||localDate(loop.deadlineAt||((loop.status!=='snoozed')?loop.dueAt:undefined));
+  loop.deadlineDate||localDate(loop.deadlineAt);
  const initialAt=kind==='event'?loop.eventAt:loop.deadlineAt;
  const [date,setDate]=useState(initialDate??'');
  const [time,setTime]=useState(localTime(initialAt));
