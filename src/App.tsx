@@ -3,6 +3,7 @@ import { ArrowUpRight, Brain, Briefcase, CalendarPlus, Check, ChevronRight, Cloc
 import type { LoopSpace, OpenLoop, SpaceDefinition } from './types/open-loop';
 import { SpacesSheet, UnassignedCard } from './spaces-ui';
 import { MeaningEditor } from './meaning-editor';
+import { ScheduleEditor, commitmentBadge, timeLabel } from './schedule-ui';
 
 // Prefer the same origin. Ignore legacy localhost overrides that break on a phone.
 const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
@@ -31,9 +32,9 @@ const demoLoops: OpenLoop[] = [
 ];
 
 function attentionText(count:number){if(count===1)return'1 вещь требует внимания';if(count>=2&&count<=4)return`${count} вещи требуют внимания`;return`${count} вещей требуют внимания`}
-function formatDate(value?:string){if(!value)return;const date=new Date(value);if(Number.isNaN(date.getTime()))return;return new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(date)}
+function formatDate(value?:string|null){if(!value)return;const date=new Date(value);if(Number.isNaN(date.getTime()))return;return new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(date)}
 function telegramLink(loop:OpenLoop){const username=loop.person?.username?.replace(/^@/,'');if(username)return`https://t.me/${username}`;if(loop.person?.telegramUserId)return`tg://user?id=${loop.person.telegramUserId}`}
-function googleCalendarLink(loop:OpenLoop){if(!loop.dueAt||loop.agreementStatus==='proposed'||loop.agreementStatus==='unknown')return;const start=new Date(loop.dueAt);if(Number.isNaN(start.getTime()))return;const end=new Date(start.getTime()+30*60*1000);const stamp=(d:Date)=>d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z');const params=new URLSearchParams({action:'TEMPLATE',text:loop.title,dates:`${stamp(start)}/${stamp(end)}`,details:loop.source.text?`Из Telegram: ${loop.source.text}`:'Добавлено из LOOP'});return`https://calendar.google.com/calendar/render?${params.toString()}`}
+function googleCalendarLink(loop:OpenLoop){if(loop.agreementStatus==='proposed'||loop.agreementStatus==='unknown')return;const when=loop.eventAt||loop.deadlineAt||loop.dueAt;if(!when)return;const start=new Date(when);if(Number.isNaN(start.getTime()))return;const end=new Date(start.getTime()+30*60*1000);const stamp=(d:Date)=>d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z');const params=new URLSearchParams({action:'TEMPLATE',text:loop.title,dates:`${stamp(start)}/${stamp(end)}`,details:loop.source.text?`Из Telegram: ${loop.source.text}`:'Добавлено из LOOP'});return`https://calendar.google.com/calendar/render?${params.toString()}`}
 
 export function App(){
  const[loops,setLoops]=useState<OpenLoop[]>([]),[spaceDefinitions,setSpaceDefinitions]=useState<SpaceDefinition[]>([]),[spaceSheet,setSpaceSheet]=useState(false),[actionError,setActionError]=useState(''),[connected,setConnected]=useState(false),[hasLoaded,setHasLoaded]=useState(false),[tab,setTab]=useState<Tab>('today'),[space,setSpace]=useState<SpaceFilter>('Все'),[selected,setSelected]=useState<OpenLoop|null>(null),[personName,setPersonName]=useState<string|null>(null),[memoryQuery,setMemoryQuery]=useState(''),[memoryResults,setMemoryResults]=useState<OpenLoop[]|null>(null),[memorySearching,setMemorySearching]=useState(false);
@@ -64,7 +65,7 @@ export function App(){
  useEffect(()=>{telegram?.ready?.();telegram?.expand?.();loadLoops();loadSpaces();const timer=setInterval(loadLoops,2000);return()=>clearInterval(timer)},[]);
  useEffect(()=>{const q=memoryQuery.trim();if(!q){setMemoryResults(null);setMemorySearching(false);return}const controller=new AbortController();const timer=setTimeout(async()=>{setMemorySearching(true);try{const res=await fetch(`${API_URL}/memory/search?q=${encodeURIComponent(q)}`,{signal:controller.signal,headers:authHeaders()});if(res.ok)setMemoryResults(await res.json())}catch(error){if((error as Error).name!=='AbortError')setMemoryResults([])}finally{if(!controller.signal.aborted)setMemorySearching(false)}},300);return()=>{clearTimeout(timer);controller.abort()}},[memoryQuery]);
  const demoMode=import.meta.env.DEV&&new URLSearchParams(window.location.search).has('demo');
- const attention=useMemo(()=>{const now=Date.now();return loops.filter(l=>l.type!=='saved'&&((l.status==='open'||l.status==='suggested')||(l.status==='snoozed'&&l.dueAt&&new Date(l.dueAt).getTime()<=now)))},[loops]);
+ const attention=useMemo(()=>{const now=Date.now();return loops.filter(l=>l.type!=='saved'&&((l.status==='open'||l.status==='suggested')||(l.status==='snoozed'&&(l.snoozedUntil||l.dueAt)&&new Date(l.snoozedUntil||l.dueAt||'').getTime()<=now)))},[loops]);
  const visibleAttention=useMemo(()=>(demoMode?demoLoops:attention).filter(l=>space==='Все'||l.space===space),[attention,space,demoMode]);
  const history=useMemo(()=>loops.filter(l=>l.status==='done').sort((a,b)=>(b.completedAt??'').localeCompare(a.completedAt??'')),[loops]);
  const allMemory=useMemo(()=>loops.filter(l=>l.type==='saved'&&l.status!=='dismissed'),[loops]);
@@ -96,7 +97,21 @@ export function App(){
  }
  async function assignSpace(loop:OpenLoop,name:string){if(loop.id.startsWith('demo-'))return;await patchLoop(loop.id,{space:name||null,spaceConfidence:name?1:0})}
  async function done(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;const completedAt=new Date().toISOString();if(await patchLoop(loop.id,{status:'done',completedAt}))setSelected(null)}
- async function snooze(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;const until=new Date();until.setDate(until.getDate()+1);until.setHours(9,0,0,0);if(await patchLoop(loop.id,{status:'snoozed',dueAt:until.toISOString()}))setSelected(null)}
+ async function snooze(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;const until=new Date();until.setDate(until.getDate()+1);until.setHours(9,0,0,0);if(await patchLoop(loop.id,{status:'snoozed',snoozedUntil:until.toISOString(),remindedAt:undefined}))setSelected(null)}
+ async function saveSchedule(loop:OpenLoop,kind:'deadline'|'event',date:string|null,at:string|null):Promise<string|null>{
+  try{
+   const res=await fetch(`${API_URL}/loops/${encodeURIComponent(loop.id)}/schedule`,{
+    method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},
+    body:JSON.stringify({kind,date,at})
+   });
+   const result=await res.json();
+   if(!res.ok)return result.error??'Не удалось сохранить дату';
+   const updated=result as OpenLoop;
+   setLoops(items=>items.map(item=>item.id===updated.id?updated:item));
+   setSelected(item=>item?.id===updated.id?updated:item);
+   return null;
+  }catch{return 'Не удалось связаться с LOOP. Попробуй ещё раз.'}
+ }
  async function confirmPlan(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;await patchLoop(loop.id,{type:'event',kind:'plan',agreementStatus:'confirmed',nextAction:'none',nextActionText:null,status:'open'})}
  async function dismissPlan(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;if(await patchLoop(loop.id,{status:'dismissed'}))setSelected(null)}
  const firstRun=hasLoaded&&connected&&loops.length===0&&!demoMode;
@@ -107,7 +122,7 @@ export function App(){
  {tab==='people'&&<PeopleView people={people} selectedName={personName} onSelectName={setPersonName} onSelectLoop={setSelected}/>} 
  {tab==='memory'&&<MemoryView query={memoryQuery} onQuery={setMemoryQuery} loops={memory} searching={memorySearching} onSelect={setSelected}/>} 
  <nav><button className={tab==='today'?'active':''} onClick={()=>setTab('today')}><Clock3/>Сегодня</button><button className={tab==='people'?'active':''} onClick={()=>setTab('people')}><Users/>Люди</button><button className={tab==='memory'?'active':''} onClick={()=>setTab('memory')}><Brain/>Память</button></nav>
- {selected&&<LoopDetail loop={selected} spaces={spaceDefinitions} onAssign={assignSpace} onCorrect={correctMeaning} onConfirm={confirmPlan} onDismiss={dismissPlan} onClose={()=>setSelected(null)} onDone={done} onSnooze={snooze}/>}
+ {selected&&<LoopDetail loop={selected} spaces={spaceDefinitions} onAssign={assignSpace} onCorrect={correctMeaning} onSchedule={saveSchedule} onConfirm={confirmPlan} onDismiss={dismissPlan} onClose={()=>setSelected(null)} onDone={done} onSnooze={snooze}/>}
  {spaceSheet&&<SpacesSheet spaces={spaceDefinitions} onClose={()=>setSpaceSheet(false)} onSave={saveSpace} onDelete={removeSpace}/>}</main>
 }
 function FirstRunEmpty(){
@@ -127,7 +142,10 @@ function FirstRunEmpty(){
 }
 function TodayView({loops,history,space,spaces,firstRun,onSpace,onManage,onSelect,onAssign}:{loops:OpenLoop[];history:OpenLoop[];space:SpaceFilter;spaces:SpaceDefinition[];firstRun:boolean;onSpace:(s:SpaceFilter)=>void;onManage:()=>void;onSelect:(l:OpenLoop)=>void;onAssign:(l:OpenLoop,name:string)=>void}){
  const unassigned=space==='Все'?loops.filter(loop=>!loop.space):[];
- const assigned=loops.filter(loop=>Boolean(loop.space));
+ const assigned=loops.filter(loop=>Boolean(loop.space)).sort((a,b)=>{
+  const rank=(loop:OpenLoop)=>commitmentBadge(loop)==='Просрочено'||commitmentBadge(loop)==='Обещание задерживается'?0:commitmentBadge(loop)==='Событие прошло'?2:1;
+  return rank(a)-rank(b);
+ });
  const filterNames=['Все',...spaces.map(item=>item.name)];
  return <>
   <div className="spaces-bar">
@@ -154,7 +172,8 @@ function LoopCard({loop,onOpen}:{loop:OpenLoop;onOpen:()=>void}){
  const chat=telegramLink(loop);
  const message=loop.source.text;
  const date=loop.dueAt?new Date(loop.dueAt):null;
- const dateLabel=loop.whenText??(date&&!Number.isNaN(date.getTime())?new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',year:'2-digit'}).format(date):null);
+ const dateLabel=timeLabel(loop)??(date&&!Number.isNaN(date.getTime())?new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',year:'2-digit'}).format(date):null);
+ const deadlineStatus=commitmentBadge(loop);
  const typeLabel=loopLabel(loop);
  const nextStep=actionHint(loop);
  return <article className="card attention-card">
@@ -162,7 +181,7 @@ function LoopCard({loop,onOpen}:{loop:OpenLoop;onOpen:()=>void}){
    <div className="attention-avatar">{(loop.person?.name??'L').slice(0,1).toUpperCase()}</div>
    <div className="attention-identity">
     <strong>{loop.person?.name??'Из Telegram'}</strong>
-    <div className="attention-tags"><span>{typeLabel}</span><span>{loop.space??'Без темы'}</span>{dateLabel&&<time className="attention-date" dateTime={loop.dueAt}>{dateLabel}</time>}</div>
+    <div className="attention-tags"><span>{typeLabel}</span><span>{loop.space??'Без темы'}</span>{deadlineStatus&&<span className="attention-late">{deadlineStatus}</span>}{dateLabel&&<time className="attention-date" dateTime={loop.eventAt||loop.deadlineAt||loop.dueAt||undefined}>{dateLabel}</time>}</div>
    </div>
    <button type="button" className="attention-menu" aria-label="Открыть детали задачи" onClick={onOpen}><span aria-hidden="true">···</span></button>
   </div>
@@ -178,7 +197,7 @@ function LoopCard({loop,onOpen}:{loop:OpenLoop;onOpen:()=>void}){
   </div>}
  </article>
 }
-function LoopDetail({loop,spaces,onAssign,onCorrect,onConfirm,onDismiss,onClose,onDone,onSnooze}:{loop:OpenLoop;spaces:SpaceDefinition[];onAssign:(loop:OpenLoop,name:string)=>void;onCorrect:(loop:OpenLoop,choice:string,title:string)=>Promise<string|null>;onConfirm:(l:OpenLoop)=>void;onDismiss:(l:OpenLoop)=>void;onClose:()=>void;onDone:(l:OpenLoop)=>void;onSnooze:(l:OpenLoop)=>void}){
+function LoopDetail({loop,spaces,onAssign,onCorrect,onSchedule,onConfirm,onDismiss,onClose,onDone,onSnooze}:{loop:OpenLoop;spaces:SpaceDefinition[];onAssign:(loop:OpenLoop,name:string)=>void;onCorrect:(loop:OpenLoop,choice:string,title:string)=>Promise<string|null>;onSchedule:(loop:OpenLoop,kind:'deadline'|'event',date:string|null,at:string|null)=>Promise<string|null>;onConfirm:(l:OpenLoop)=>void;onDismiss:(l:OpenLoop)=>void;onClose:()=>void;onDone:(l:OpenLoop)=>void;onSnooze:(l:OpenLoop)=>void}){
  const chat=telegramLink(loop),calendar=googleCalendarLink(loop),m=meta[loop.type],isDone=loop.status==='done',isDemo=loop.id.startsWith('demo-');
  const proposal=loop.kind==='plan'&&(loop.agreementStatus==='proposed'||loop.agreementStatus==='unknown');
  const nextStep=actionHint(loop);
@@ -187,12 +206,15 @@ function LoopDetail({loop,spaces,onAssign,onCorrect,onConfirm,onDismiss,onClose,
   <button className="sheet-close" onClick={onClose} aria-label="Закрыть"><X size={20}/></button>
   <div className="detail-badge"><span>{m.icon}</span>{loopLabel(loop)}</div><h2>{loop.title}</h2>
   <div className="detail-meta">{loop.space&&<span>{loop.space}</span>}{loop.whenText&&<span>🗓 {loop.whenText}</span>}{loop.memoryCategory&&<span>{loop.memoryCategory}</span>}{loop.dueAt&&!loop.whenText&&<span>⏰ {formatDate(loop.dueAt)}</span>}{isDone&&<span>✓ Закрыто {formatDate(loop.completedAt)}</span>}</div>
-  {loop.kind==='plan'&&<p className="agreement-state">{proposal?'Встреча или передача пока предложена, но не подтверждена.':loop.agreementStatus==='confirmed'?'Договорённость подтверждена.':'Не удалось установить, подтверждены ли детали.'}</p>}
+  {commitmentBadge(loop)&&<p className="agreement-state">{commitmentBadge(loop)}</p>}
+ {loop.kind==='plan'&&<p className="agreement-state">{proposal?'Встреча или передача пока предложена, но не подтверждена.':loop.agreementStatus==='confirmed'?'Договорённость подтверждена.':'Не удалось установить, подтверждены ли детали.'}</p>}
   {nextStep&&<div className="detail-next-step"><small>Следующий шаг</small><strong>{nextStep}</strong></div>}
   {!isDemo&&<div className="meaning-edit-area">
    {editMeaning?<MeaningEditor loop={loop} onSave={(choice,title)=>onCorrect(loop,choice,title)} onCancel={()=>setEditMeaning(false)}/>
    :<button type="button" className="meaning-edit-toggle" onClick={()=>setEditMeaning(true)}>Исправить смысл или название <span aria-hidden="true">✎</span></button>}
   </div>}
+  {!isDemo&&((loop.type==='event'&&loop.kind==='plan'&&loop.agreementStatus==='confirmed')||(loop.type!=='event'&&loop.type!=='saved'&&loop.kind!=='plan'))&&
+   <ScheduleEditor key={loop.id} loop={loop} onSave={(kind,date,at)=>onSchedule(loop,kind,date,at)}/>}
   {!isDemo&&<label className="detail-space-select">Тема<select value={loop.space??''} onChange={e=>onAssign(loop,e.target.value)}>
    <option value="">Без темы</option>{spaces.map(item=><option key={item.id} value={item.name}>{item.name}</option>)}
   </select><small>Исправления помогают LOOP точнее распределять следующие сообщения.</small></label>}
