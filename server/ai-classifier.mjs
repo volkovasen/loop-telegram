@@ -126,7 +126,9 @@ ${JSON.stringify(examplesOfMeaning)}
         nextActionText: item.nextActionText,
         whenText: item.whenText,
         person: person ?? (author ? { name: author } : undefined),
-        dueAt: undefined,
+        // Accept old model responses and existing tests, but never treat
+        // legacy event dueAt as a task deadline.
+        dueAt: typeof item.dueAt === 'string' ? item.dueAt : undefined,
         ...schedule,
         space,
         spaceConfidence: space ? spaceConfidence : 0,
