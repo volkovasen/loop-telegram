@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { DEFAULT_SPACES, normalizeExampleText } from './space-rules.mjs';
 import { normalizePerson, personKey, dedupeParticipants, mergePlanRecords } from './participants.mjs';
+import { DEMO_TAGS } from './demo-seeds.mjs';
 
 // Keep all user data on Railway's persistent volume, never on its ephemeral app disk.
 const railwayVolume = process.env.RAILWAY_VOLUME_MOUNT_PATH;
@@ -301,5 +302,20 @@ export async function mergeLoopPlans(ownerId,targetId,otherId){
   loops[secondaryIndex]={...secondary,status:'dismissed',mergedInto:targetId,updatedAt:new Date().toISOString()};
   await writeAll(loops);
   return merged;
+ });
+}
+
+/**
+ * Explicit cleanup for /demo clear. Only records marked by our demo fixture
+ * generator belonging to the requesting Telegram user may be removed.
+ */
+export async function clearDemoLoops(ownerId) {
+ if(!/^\d{4,20}$/.test(String(ownerId)))throw new SpaceError('Неверный Telegram-аккаунт.',401);
+ return enqueueWrite(async()=>{
+  const loops=await readAll();
+  const remaining=loops.filter(item=>!(String(item.ownerId)===String(ownerId)&&DEMO_TAGS.includes(item.seedTag)));
+  const removed=loops.length-remaining.length;
+  if(removed)await writeAll(remaining);
+  return removed;
  });
 }
