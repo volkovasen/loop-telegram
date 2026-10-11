@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AlertCircle, CheckCircle2, ChevronRight, FolderPlus, Pencil, Trash2, X } from 'lucide-react';
 import type { OpenLoop, SpaceDefinition } from './types/open-loop';
+import { commitmentBadge } from './schedule-ui';
 
 export function UnassignedCard({ loop, spaces, onAssign, onOpen }: {
   loop: OpenLoop;
@@ -11,6 +12,7 @@ export function UnassignedCard({ loop, spaces, onAssign, onOpen }: {
   return <article className="unassigned-card">
     <div className="unassigned-byline">{loop.person?.name ?? 'Из Telegram'} · {loop.type === 'event' ? 'Событие' : 'Нужно распределить'}</div>
     <h3>{loop.title}</h3>
+    {commitmentBadge(loop)&&<small className="spaces-form-error">{commitmentBadge(loop)}</small>}
     {loop.source.text && <p className="unassigned-source">{loop.source.text}</p>}
     <div className="unassigned-actions">
       <label className="unassigned-select-wrap">
