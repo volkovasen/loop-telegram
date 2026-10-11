@@ -60,7 +60,7 @@ export function acceptedSchedule(item, normalized, text) {
  if (!evidence) return output;
  // Do not accept an invented 12:00 for "до пятницы" or "в субботу".
  // Exact moments need independent clock evidence in the original message.
- const clock=/(?:\d{1,2}[:.]\d{2}|(?:в|к|до)\s+(?:\d{1,2}(?:\s+час(?:а|ов)?)?|час|полдень|полночь|два|три|четыре|пять|шесть|семь|восемь|девять|десять|одиннадцать|двенадцать)(?:\s|$|[.,!]))/iu.test(text??'');
+ const clock=/(?:\d{1,2}:\d{2}|(?:в|к|до)\s+(?:\d{1,2}(?:\.\d{2})?(?:\s+час(?:а|ов)?)?|час|полдень|полночь|два|три|четыре|пять|шесть|семь|восемь|девять|десять|одиннадцать|двенадцать)(?:\s|$|[.,!]))/iu.test(text??'');
  if (supportsDeadline(normalized)) {
   if (validDate(item.deadlineDate)) output.deadlineDate=item.deadlineDate;
   if (clock && validInstant(item.deadlineAt)) output.deadlineAt=item.deadlineAt;
