@@ -33,7 +33,7 @@ function originPerson(message) {
   if (origin.type === 'channel') return { name: cleanName(origin.chat.title) ?? origin.chat.username ?? 'Канал Telegram', username: origin.chat.username, nameSource: 'telegram' };
 }
 
-const labels = { reply: '🔴 Нужно ответить', todo: '✅ Нужно сделать', waiting: '🟡 Ждёшь', event: '📅 Событие', saved: '🔖 В память' };
+const labels = { reply: '↩ Нужно ответить', todo: '✅ Нужно сделать', waiting: '🟡 Ждём обещанного', event: '📅 Событие', saved: '🔖 В память' };
 function mediaInfo(message) {
   if (message.voice) return { fileId: message.voice.file_id, mimeType: message.voice.mime_type ?? 'audio/ogg', fileName: 'voice.ogg', kind: 'voice', duration: message.voice.duration };
   if (message.video_note) return { fileId: message.video_note.file_id, mimeType: 'video/mp4', fileName: 'video-note.mp4', kind: 'video_note', duration: message.video_note.duration };
@@ -75,8 +75,12 @@ async function processMeaning(ctx, text, mediaKind) {
   const summary = saved.map((loop) => {
     const header = loop.kind === 'plan' && loop.agreementStatus === 'proposed'
       ? '🤝 Нужно договориться' : labels[loop.type];
-    const date = loop.whenText ? `\n🗓 ${loop.whenText}` :
-      loop.dueAt ? `\n⏰ ${new Date(loop.dueAt).toLocaleString('ru-RU')}` : '';
+    const scheduledDate = loop.deadlineDate || loop.eventDate;
+    const scheduledAt = loop.deadlineAt || loop.eventAt;
+    const date = loop.whenText ? `\n🗓 ${loop.whenText}`
+      : scheduledAt ? `\n⏰ ${new Date(scheduledAt).toLocaleString('ru-RU')}`
+      : scheduledDate ? `\n🗓 ${scheduledDate}`
+      : loop.dueAt ? `\n⏰ ${new Date(loop.dueAt).toLocaleString('ru-RU')}` : '';
     const next = loop.nextActionText ? `\n→ ${loop.nextActionText}` : '';
     return `${header}\n${loop.title}${loop.space ? ` · ${loop.space}` : ' · 📂 Без темы'}${date}${next}`;
   }).join('\n\n');
@@ -94,7 +98,16 @@ async function sendDueReminders() {
     try {
       const prefix = loop.status === 'snoozed' ? '⏰ Пора вернуть в внимание' : loop.type === 'event' ? '📅 Сейчас' : '⏰ Напоминание';
       await bot.api.sendMessage(loop.ownerId, `${prefix}\n\n${loop.title}${loop.person?.name ? `\n${loop.person.name}` : ''}`, { reply_markup: appKeyboard() });
-      await updateLoop(loop.id, { remindedAt: new Date().toISOString(), status: loop.status === 'snoozed' ? 'open' : loop.status, snoozedUntil: loop.status === 'snoozed' ? null : loop.snoozedUntil }, String(loop.ownerId));
+      // A snooze notification and a future deadline reminder are different.
+      // Resuming early must not consume the future deadline's reminder.
+      const wasSnoozed = loop.status === 'snoozed';
+      const nextTrigger = wasSnoozed ? reminderAt({ ...loop, status: 'open', snoozedUntil: null }) : null;
+      const consumeReminder = !wasSnoozed || (nextTrigger && Date.parse(nextTrigger) <= now);
+      await updateLoop(loop.id, {
+        remindedAt: consumeReminder ? new Date().toISOString() : null,
+        status: wasSnoozed ? 'open' : loop.status,
+        snoozedUntil: wasSnoozed ? null : loop.snoozedUntil
+      }, String(loop.ownerId));
     } catch (error) {
       console.error('Reminder failed:', loop.id, error);
     }
