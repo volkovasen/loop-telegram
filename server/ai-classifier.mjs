@@ -2,6 +2,7 @@ import { DEFAULT_SPACES, learnedSpaceFor, normalizeExampleText } from './space-r
 import { normalizeAIItems } from './meaning.mjs';
 import { requestJSON, resolveAIConfig } from './ai-provider.mjs';
 import { relevantMeaningCorrections } from './meaning-memory.mjs';
+import { acceptedSchedule } from './temporal.mjs';
 
 const allowedTypes = new Set(['reply', 'todo', 'waiting', 'event', 'saved']);
 export async function classifyWithAI({ text, author, messageId, chatId, receivedAt, person, spaces = DEFAULT_SPACES, meaningCorrections = [] }, options = {}) {
@@ -50,7 +51,11 @@ export async function classifyWithAI({ text, author, messageId, chatId, received
 - title: короткий, понятный заголовок с действия для незакрытых договорённостей. Пиши "Договориться о встрече в субботу", а не "Договорённость с человеком" или "Ждёт ответа";
 - confidence: 0..1;
 - whenText: подтверждённое текстом время/дата человеческими словами ("в субботу", "завтра") либо null;
-- dueAt: ISO-8601 дата-время ТОЛЬКО при явном времени (например "в 19:00") для подтверждённого события / срока конкретного действия. Если дата без времени или приглашение ещё не принято, null;
+- deadlineDate: календарная дата в формате YYYY-MM-DD, если у просьбы/обещания есть явный срок, даже без точного времени; иначе null.
+- deadlineAt: ISO-8601 со смещением, если у просьбы/обещания есть И дата, И точное время срока; иначе null.
+- eventDate: календарная дата YYYY-MM-DD для уже подтверждённого события; иначе null.
+- eventAt: ISO-8601 со смещением, только для подтверждённого события с точным временем и датой; иначе null.
+- dueAt: устаревшее поле, всегда null для новых карточек. Не смешивай дедлайн дела, дату события и отложенное напоминание.
 - space: одно точное название из пользовательских Spaces ниже или null, если недостаточно контекста;
 - spaceConfidence: 0..1, независимая уверенность именно в выборе Space (0, если null);
 - memoryCategory: для saved короткая категория вроде Рестораны, Фильмы, Книги, Места, Почитать, Покупки; для остальных null.
@@ -67,7 +72,10 @@ export async function classifyWithAI({ text, author, messageId, chatId, received
 - Не создавай объект из болтовни, смеха, риторических вопросов и пустых сообщений.
 - Одно сообщение может дать несколько объектов. Например встречу и рекомендацию ресторана.
 - Понимай время и в цифрах, и словами: «16:00», «в четыре», «завтра вечером», «в пятницу».
-- Если точное время не указано, не выдумывай минуты и НЕ придумывай 12:00. date-only оставляй как whenText, dueAt:null.
+- Если точное время не указано, не выдумывай минуты и НЕ придумывай 12:00. Используй дату без времени deadlineDate/eventDate и человеческую whenText.
+- Для предложений встреч deadlineDate, deadlineAt, eventDate, eventAt всегда null: приглашение ещё не подтверждено.
+- Только конкретная просьба или обещание может иметь «Просрочено». Прошедшее согласованное событие = «Событие прошло», не просроченное задание.
+- Срок «до пятницы» = deadlineDate; «встречаемся в пятницу» = eventDate, если согласовано. Эти значения не взаимозаменяемы.
 - Не выдумывай место встречи (например, вокзал), имя, человека, предмет ("его"), дату или категорию, которых нет в сообщении.
 - Определяй Space по смыслу текста, правилам пользователя и примерам исправлений. Названия Spaces не ограничены тремя стандартными.
 - Исправления пользователя важнее обычных предположений, но учитывай также автора и контекст.
@@ -80,7 +88,7 @@ export async function classifyWithAI({ text, author, messageId, chatId, received
 - Если ничего полезного нет, верни пустой массив.
 
 Верни ТОЛЬКО JSON такого вида:
-{"loops":[{"type":"reply","kind":"plan","agreementStatus":"proposed","nextAction":"coordinate","nextActionText":"Подтвердить встречу и уточнить время","title":"Договориться о встрече в субботу","confidence":0.93,"whenText":"в субботу","dueAt":null,"space":"Личное","spaceConfidence":0.95,"memoryCategory":null}]}
+{"loops":[{"type":"reply","kind":"plan","agreementStatus":"proposed","nextAction":"coordinate","nextActionText":"Подтвердить встречу и уточнить время","title":"Договориться о встрече в субботу","confidence":0.93,"whenText":"в субботу","deadlineDate":null,"deadlineAt":null,"eventDate":null,"eventAt":null,"dueAt":null,"space":"Личное","spaceConfidence":0.95,"memoryCategory":null}]}
 
 Часовой пояс пользователя: ${timeZone}
 Время получения сообщения: ${receivedAt}
@@ -106,6 +114,7 @@ ${JSON.stringify(examplesOfMeaning)}
       const spaceConfidence = learned ? 1 : Math.max(0, Math.min(1, Number(item.spaceConfidence) || 0));
       const proposed = learned ?? item.space;
       const space = allowedSpaces.has(proposed) && spaceConfidence >= 0.75 ? proposed : null;
+      const schedule = acceptedSchedule(item, item, text);
       return {
         id: crypto.randomUUID(),
         type: item.type,
@@ -117,7 +126,8 @@ ${JSON.stringify(examplesOfMeaning)}
         nextActionText: item.nextActionText,
         whenText: item.whenText,
         person: person ?? (author ? { name: author } : undefined),
-        dueAt: typeof item.dueAt === 'string' ? item.dueAt : undefined,
+        dueAt: undefined,
+        ...schedule,
         space,
         spaceConfidence: space ? spaceConfidence : 0,
         memoryCategory: item.type === 'saved' && typeof item.memoryCategory === 'string' ? item.memoryCategory.trim() : undefined,
