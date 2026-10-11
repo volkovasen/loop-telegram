@@ -42,3 +42,8 @@ test('model schedule fields require date evidence and correct agreement state',(
  assert.equal(validInstant('2026-10-16T19:00:00+05:00'),true);
  assert.equal(validInstant('2026-10-16'),false);
 });
+
+test('legacy dueAt is not safe evidence of a missed obligation',()=>{
+ assert.equal(temporalStatus({...task,dueAt:'2026-10-11T10:00:00+05:00'},now,'Asia/Yekaterinburg'),null);
+ assert.equal(temporalStatus({...task,status:'snoozed',dueAt:'2026-10-11T10:00:00+05:00'},now,'Asia/Yekaterinburg'),null);
+});
