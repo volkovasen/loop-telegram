@@ -25,7 +25,12 @@ export interface OpenLoop {
   nextActionText?: string | null;
   whenText?: string | null;
   person?: { telegramUserId?: number; name: string; username?: string; nameSource?: 'contact' | 'telegram' };
-  dueAt?: string;
+  dueAt?: string | null; // legacy; no longer reused for snoozing
+  deadlineDate?: string | null; // YYYY-MM-DD, day precision
+  deadlineAt?: string | null; // explicit time
+  eventDate?: string | null;
+  eventAt?: string | null;
+  snoozedUntil?: string | null;
   space?: LoopSpace | null;
   spaceConfidence?: number;
   memoryCategory?: string;
