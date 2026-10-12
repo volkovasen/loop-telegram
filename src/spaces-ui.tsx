@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertCircle, CheckCircle2, ChevronRight, FolderPlus, Pencil, Trash2, X } from 'lucide-react';
+import { AlertCircle, ChevronRight, FolderPlus, Pencil, Trash2, X } from 'lucide-react';
 import type { OpenLoop, SpaceDefinition } from './types/open-loop';
 import { commitmentBadge } from './schedule-ui';
 
@@ -33,21 +33,20 @@ export function UnassignedCard({ loop, spaces, onAssign, onOpen }: {
 type Draft = { id?: string; name: string; description: string };
 const emptyDraft: Draft = { name: '', description: '' };
 
-export function SpacesSheet({ spaces, onClose, onSave, onDelete }: {
+export function SpacesSheet({ spaces, onClose, onSave, onDelete, onNotice }: {
   spaces: SpaceDefinition[];
   onClose: () => void;
   onSave: (draft: Draft) => Promise<string | null>;
   onDelete: (id: string) => Promise<string | null>;
+  onNotice: (text:string) => void;
 }) {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [feedback, setFeedback] = useState<{ kind: 'created' | 'updated' | 'deleted'; name: string } | null>(null);
 
   function edit(item: SpaceDefinition) {
     setDraft({ id: item.id, name: item.name, description: item.description });
     setError('');
-    setFeedback(null);
   }
   async function save() {
     if (saving) return;
@@ -57,7 +56,6 @@ export function SpacesSheet({ spaces, onClose, onSave, onDelete }: {
     }
     setSaving(true);
     setError('');
-    setFeedback(null);
     const wasEditing = Boolean(draft.id);
     const name = draft.name.trim();
     try {
@@ -65,7 +63,8 @@ export function SpacesSheet({ spaces, onClose, onSave, onDelete }: {
       if (message) setError(message);
       else {
         setDraft(emptyDraft);
-        setFeedback({ kind: wasEditing ? 'updated' : 'created', name });
+        onNotice(wasEditing ? `Тема «${name}» обновлена` : `Тема «${name}» создана`);
+        onClose();
       }
     } catch {
       setError('Не получилось сохранить тему. Попробуй ещё раз.');
@@ -75,13 +74,12 @@ export function SpacesSheet({ spaces, onClose, onSave, onDelete }: {
     if (saving || !window.confirm(`Удалить «${item.name}»? Задачи останутся, но их нужно будет распределить заново.`)) return;
     setSaving(true);
     setError('');
-    setFeedback(null);
     try {
       const message = await onDelete(item.id);
       if (message) setError(message);
       else {
         if (draft.id === item.id) setDraft(emptyDraft);
-        setFeedback({ kind: 'deleted', name: item.name });
+        onNotice(`Тема «${item.name}» удалена`);
       }
     } catch {
       setError('Не получилось удалить тему. Попробуй ещё раз.');
@@ -95,28 +93,23 @@ export function SpacesSheet({ spaces, onClose, onSave, onDelete }: {
       <h2>Разложи по своим темам</h2>
       <p className="spaces-sheet-explain">Создай тему и объясни, что к ней относится. LOOP будет учитывать твои правила при новых пересылках.</p>
       <div className="spaces-manage-list">
-        {spaces.map(item => <div className={feedback?.kind !== 'deleted' && feedback?.name === item.name ? 'spaces-manage-row spaces-manage-row-confirmed' : 'spaces-manage-row'} key={item.id}>
-          <span><strong>{item.name}{feedback?.kind !== 'deleted' && feedback?.name === item.name && <CheckCircle2 size={15} className="spaces-created-check" aria-label="Сохранено"/>}</strong><small>{item.isDefault ? 'Стандартная тема' : `${item.examples?.length ?? 0} примеров для LOOP`}</small></span>
-          {!item.isDefault && <div className="spaces-manage-actions">
+        {spaces.map(item => <div className="spaces-manage-row" key={item.id}>
+          <span><strong>{item.name}</strong><small>{item.isDefault ? 'Стандартная тема' : `${item.examples?.length ?? 0} примеров для LOOP`}</small></span>
+          <div className="spaces-manage-actions">
             <button type="button" onClick={() => edit(item)} aria-label={`Изменить ${item.name}`} disabled={saving}><Pencil size={17}/></button>
-            <button type="button" onClick={() => void remove(item)} aria-label={`Удалить ${item.name}`} disabled={saving}><Trash2 size={17}/></button>
-          </div>}
+            {!item.isDefault && <button type="button" onClick={() => void remove(item)} aria-label={`Удалить ${item.name}`} disabled={saving}><Trash2 size={17}/></button>}
+          </div>
         </div>)}
       </div>
       <div className="spaces-editor">
         <strong>{draft.id ? 'Изменить тему' : 'Новая тема'}</strong>
-        <label>Название<input maxLength={40} value={draft.name} onChange={e => {setDraft(value => ({...value, name:e.target.value}));setFeedback(null);}} placeholder="Например, Футбол"/></label>
-        <label>Что сюда относится?<textarea rows={3} maxLength={400} value={draft.description} onChange={e => {setDraft(value => ({...value, description:e.target.value}));setFeedback(null);}} placeholder="Тренировки, матчи, игры с командой, взносы и встречи с тренером"/></label>
+        <label>Название<input maxLength={40} value={draft.name} onChange={e => {setDraft(value => ({...value, name:e.target.value}));}} placeholder="Например, Футбол"/></label>
+        <label>Что сюда относится?<textarea rows={3} maxLength={400} value={draft.description} onChange={e => {setDraft(value => ({...value, description:e.target.value}));}} placeholder="Тренировки, матчи, игры с командой, взносы и встречи с тренером"/></label>
         {error && <p role="alert" className="spaces-form-error"><AlertCircle size={15}/>{error}</p>}
         <div className="spaces-editor-actions">
           {draft.id && <button type="button" className="spaces-cancel" onClick={() => {setDraft(emptyDraft);setError('');setFeedback(null);}} disabled={saving}>Отмена</button>}
           <button type="button" className="spaces-save" onClick={() => void save()} disabled={saving}>{saving ? 'Сохраняю…' : draft.id ? 'Сохранить' : 'Добавить тему'}</button>
         </div>
-        {feedback && <div className="spaces-save-confirmation" role="status" aria-live="polite" aria-atomic="true">
-          <CheckCircle2 size={20} aria-hidden="true"/>
-          <span>{feedback.kind === 'created' ? `Тема «${feedback.name}» создана` : feedback.kind === 'updated' ? `Изменения в «${feedback.name}» сохранены` : `Тема «${feedback.name}» удалена`}</span>
-          <button type="button" onClick={() => setFeedback(null)} aria-label="Скрыть подтверждение"><X size={16}/></button>
-        </div>}
       </div>
     </section>
   </div>;
