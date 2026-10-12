@@ -21,7 +21,11 @@ export function makeDemoLoops(ownerId,{now=new Date(),timeZone='UTC'}={}) {
  if(Number.isNaN(timestamp.getTime()))throw new Error('Invalid current time');
  // The previous local calendar day is unambiguously overdue without
  // inventing a specific clock time or sending a reminder.
- const yesterday=localCalendarDay(new Date(timestamp.getTime()-86400000),timeZone);
+ // Calendar arithmetic, not -24h: on DST shifts, yesterday can be 23/25 hours away.
+ const today=localCalendarDay(timestamp,timeZone);
+ const previousDay=new Date(today+'T00:00:00.000Z');
+ previousDay.setUTCDate(previousDay.getUTCDate()-1);
+ const yesterday=previousDay.toISOString().slice(0,10);
  const receivedAt=timestamp.toISOString();
  const common={
   ownerId:String(ownerId),status:'open',confidence:1,
