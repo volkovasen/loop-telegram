@@ -5,6 +5,7 @@ import { SpacesSheet, UnassignedCard } from './spaces-ui';
 import { MeaningEditor } from './meaning-editor';
 import { ScheduleEditor, commitmentBadge, timeLabel } from './schedule-ui';
 import { ParticipantsEditor } from './participants-ui';
+import { LoopCard } from './loop-card';
 
 // Prefer the same origin. Ignore legacy localhost overrides that break on a phone.
 const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
@@ -213,6 +214,7 @@ function TodayView({loops,history,snoozed,dismissed,space,spaces,firstRun,onSpac
     <p className="unassigned-hint">LOOP не уверен, к какой теме относятся эти сообщения.</p>
     {unassigned.map(loop=><UnassignedCard key={loop.id} loop={loop} spaces={spaces} onAssign={onAssign} onOpen={onSelect}/>)}
    </section>}
+   {assigned.length>0&&<div className="loop-list-heading"><h2>Требуют внимания</h2><span>{assigned.length}</span></div>}
    <section className="stack">{assigned.map(loop=><LoopCard key={loop.id} loop={loop} onOpen={()=>onSelect(loop)}/>)}</section>
    {!loops.length&&<div className="empty"><Check size={26}/><strong>{space==='Все'?'Сейчас ничего не требует внимания':'В этом разделе пусто'}</strong><span>{space==='Все'?'Все задачи выполнены или отложены. Новые появятся после пересылки боту.':'Попробуй выбрать «Все», чтобы увидеть остальные задачи.'}</span></div>}
    {!!snoozed.length&&space==='Все'&&<section className="history-block"><div className="section-title">Отложено · {snoozed.length}</div>{snoozed.slice(0,8).map(loop=><button key={loop.id} className="history-row" onClick={()=>onSelect(loop)}><span className="history-check">◷</span><span><strong>{loop.title}</strong><small>Вернуть раньше · {formatDate(loop.snoozedUntil||loop.dueAt)}</small></span><ChevronRight size={16}/></button>)}</section>}
@@ -223,37 +225,7 @@ function TodayView({loops,history,snoozed,dismissed,space,spaces,firstRun,onSpac
 }
 function PeopleView({people,selectedName,onSelectName,onSelectLoop}:{people:[string,OpenLoop[]][];selectedName:string|null;onSelectName:(n:string|null)=>void;onSelectLoop:(l:OpenLoop)=>void}){if(selectedName){const items=people.find(([n])=>n===selectedName)?.[1]??[],open=items.filter(l=>l.status==='open'||l.status==='suggested'||l.status==='snoozed'),saved=items.filter(l=>l.type==='saved'),done=items.filter(l=>l.status==='done'),chatLoop=items.find(l=>l.person?.name===selectedName&&telegramLink(l)),chat=chatLoop?telegramLink(chatLoop):undefined;return <section className="person-page"><button className="back" onClick={()=>onSelectName(null)}>← Все люди</button><div className="person-hero"><div className="avatar">{selectedName.slice(0,1).toUpperCase()}</div><div><h2>{selectedName}</h2><p>{open.length} открыто · {saved.length} в памяти</p></div></div>{chat&&<a className="wide-action" href={chat}>Открыть чат в Telegram</a>}<PersonSection title="Незакрыто" loops={open.filter(x=>x.type!=='saved')} onSelect={onSelectLoop}/><PersonSection title="Советовал / сохранено" loops={saved} onSelect={onSelectLoop}/><PersonSection title="Закрыто" loops={done.slice(0,6)} onSelect={onSelectLoop}/></section>}return <section className="people-list">{people.map(([name,items])=>{const openCount=items.filter(l=>l.status==='open'||l.status==='suggested').length,savedCount=items.filter(l=>l.type==='saved').length;return <button key={name} className="person-row" onClick={()=>onSelectName(name)}><div className="avatar">{name.slice(0,1).toUpperCase()}</div><span><strong>{name}</strong><small>{openCount} открыто · {savedCount} сохранено</small></span><ChevronRight size={18}/></button>})}{!people.length&&<div className="empty"><Users size={26}/><strong>Людей пока нет</strong><span>Перешли сообщение от человека, и LOOP соберёт контекст.</span></div>}</section>}
 function PersonSection({title,loops,onSelect}:{title:string;loops:OpenLoop[];onSelect:(l:OpenLoop)=>void}){if(!loops.length)return null;return <div className="person-section"><div className="section-title">{title}</div>{loops.map(loop=><button key={loop.id} className="mini-loop" onClick={()=>onSelect(loop)}><span>{meta[loop.type].icon}</span><span><strong>{loop.title}</strong><small>{loop.space??'Без темы'}{loop.dueAt?` · ${formatDate(loop.dueAt)}`:''}</small></span><ChevronRight size={16}/></button>)}</div>}
-function MemoryView({query,onQuery,loops,searching,onSelect}:{query:string;onQuery:(v:string)=>void;loops:OpenLoop[];searching:boolean;onSelect:(l:OpenLoop)=>void}){return <><label className="search-box"><Search size={18}/><input value={query} onChange={e=>onQuery(e.target.value)} placeholder="Берлин, фильм, где поесть…"/></label><div className="memory-hint">{searching?'LOOP вспоминает…':'Пиши хоть одно слово, имя, место или обычный вопрос.'}</div><section className="memory-grid">{loops.map(loop=><button key={loop.id} className="memory-card" onClick={()=>onSelect(loop)}><div className="memory-top"><span>{loop.memoryCategory??'Сохранено'}</span><span>{loop.space??'Без темы'}</span></div><strong>{loop.title}</strong><small>{loop.person?.name?`От ${loop.person.name}`:'Из Telegram'}</small>{loop.source.text&&<p>“{loop.source.text}”</p>}</button>)}</section>{!searching&&!loops.length&&<div className="empty"><Brain size={26}/><strong>Ничего не нашлось</strong><span>Попробуй другое слово или формулировку.</span></div>}</>}
-function LoopCard({loop,onOpen}:{loop:OpenLoop;onOpen:()=>void}){
- const [expanded,setExpanded]=useState(false);
- const chat=telegramLink(loop);
- const message=loop.source.text;
- const date=loop.dueAt?new Date(loop.dueAt):null;
- const dateLabel=timeLabel(loop)??(date&&!Number.isNaN(date.getTime())?new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',year:'2-digit'}).format(date):null);
- const deadlineStatus=commitmentBadge(loop);
- const typeLabel=loopLabel(loop);
- const nextStep=actionHint(loop);
- return <article className="card attention-card">
-  <div className="attention-head">
-   <div className="attention-avatar">{(loop.person?.name??'L').slice(0,1).toUpperCase()}</div>
-   <div className="attention-identity">
-    <strong>{loop.person?.name??'Из Telegram'}</strong>
-    <div className="attention-tags"><span>{typeLabel}</span><span>{loop.space??'Без темы'}</span>{deadlineStatus&&<span className="attention-late">{deadlineStatus}</span>}{dateLabel&&<time className="attention-date" dateTime={loop.eventAt||loop.deadlineAt||loop.dueAt||undefined}>{dateLabel}</time>}</div>
-   </div>
-   <button type="button" className="attention-menu" aria-label="Открыть детали задачи" onClick={onOpen}><span aria-hidden="true">···</span></button>
-  </div>
-  <h2>{loop.title}</h2>
-  {nextStep&&<div className="attention-next-step"><strong>Следующий шаг</strong><span>{nextStep}</span></div>}
-  {message&&<div className="attention-source">
-   <div className="attention-source-label">{loop.source.mediaKind?'РАСШИФРОВКА':'В ЧАТЕ'}</div>
-   <p className={expanded?'attention-message expanded':'attention-message'}>{message}</p>
-   <div className="attention-source-actions">
-    {message.length>85&&<button type="button" className="attention-expand" onClick={()=>setExpanded(v=>!v)}>{expanded?'Свернуть':'Показать полностью'}</button>}
-    {loop.id.startsWith('demo-')?<button type="button" className="attention-telegram" title="Демо: ссылки на чат нет" onClick={()=>window.alert('Демо-карточка: переход в Telegram недоступен')}>В Telegram <span aria-hidden="true">↗</span></button>:chat&&<a className="attention-telegram" href={chat} onClick={e=>e.stopPropagation()}>В Telegram <span aria-hidden="true">↗</span></a>}
-   </div>
-  </div>}
- </article>
-}
+function MemoryView({query,onQuery,loops,searching,onSelect}:{query:string;onQuery:(v:string)=>void;loops:OpenLoop[];searching:boolean;onSelect:(l:OpenLoop)=>void}){return <><label className="search-box"><Search size={18}/><input value={query} onChange={e=>onQuery(e.target.value)} placeholder="Берлин, фильм, где поесть…"/></label><div className="memory-hint">{searching?'LOOP вспоминает…':'Пиши хоть одно слово, имя, место или обычный вопрос.'}</div><section className="memory-grid">{loops.map(loop=><button key={loop.id} className="memory-card" onClick={()=>onSelect(loop)}><div className="memory-top"><span>{loop.memoryCategory??'Сохранено'}</span><span>{loop.space??'Без темы'}</span></div><strong>{loop.title}</strong><small>{loop.person?.name?`От ${loop.person.name}`:'Из Telegram'}</small><span className="memory-open-hint">Открыть подробности <ChevronRight size={15}/></span></button>)}</section>{!searching&&!loops.length&&<div className="empty"><Brain size={26}/><strong>Ничего не нашлось</strong><span>Попробуй другое слово или формулировку.</span></div>}</>}
 function LoopDetail({loop,candidates,spaces,onAssign,onCorrect,onSchedule,onAddParticipant,onRemoveParticipant,onMerge,onUndoMerge,onReopen,onConfirm,onDismiss,onClose,onDone,onSnooze}:{loop:OpenLoop;candidates:OpenLoop[];spaces:SpaceDefinition[];onAssign:(loop:OpenLoop,name:string)=>void;onCorrect:(loop:OpenLoop,choice:string,title:string)=>Promise<string|null>;onSchedule:(loop:OpenLoop,kind:'deadline'|'event',date:string|null,at:string|null)=>Promise<string|null>;
  onAddParticipant:(loop:OpenLoop,name:string)=>Promise<string|null>;
  onRemoveParticipant:(loop:OpenLoop,name:string)=>Promise<string|null>;
