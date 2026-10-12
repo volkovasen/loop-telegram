@@ -107,7 +107,7 @@ export function SpacesSheet({ spaces, onClose, onSave, onDelete, onNotice }: {
         <label>Что сюда относится?<textarea rows={3} maxLength={400} value={draft.description} onChange={e => {setDraft(value => ({...value, description:e.target.value}));}} placeholder="Тренировки, матчи, игры с командой, взносы и встречи с тренером"/></label>
         {error && <p role="alert" className="spaces-form-error"><AlertCircle size={15}/>{error}</p>}
         <div className="spaces-editor-actions">
-          {draft.id && <button type="button" className="spaces-cancel" onClick={() => {setDraft(emptyDraft);setError('');setFeedback(null);}} disabled={saving}>Отмена</button>}
+          {draft.id && <button type="button" className="spaces-cancel" onClick={() => {setDraft(emptyDraft);setError('');}} disabled={saving}>Отмена</button>}
           <button type="button" className="spaces-save" onClick={() => void save()} disabled={saving}>{saving ? 'Сохраняю…' : draft.id ? 'Сохранить' : 'Добавить тему'}</button>
         </div>
       </div>
