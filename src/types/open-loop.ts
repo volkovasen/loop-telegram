@@ -28,7 +28,17 @@ export interface OpenLoop {
   participants?: { telegramUserId?: number; name: string; username?: string; nameSource?: 'contact' | 'telegram' }[];
   relatedSources?: OpenLoop['source'][];
   mergedFrom?: string[];
-  mergedInto?: string;
+  mergedInto?: string | null;
+  mergeHistory?: {
+    secondaryId:string;
+    mergedAt:string;
+    before:{
+      participants:OpenLoop['participants'];
+      relatedSources:OpenLoop['relatedSources'];
+      mergedFrom?:string[];
+    };
+    secondaryBefore:{ status:LoopStatus; mergedInto?:string|null };
+  }[];
   dueAt?: string | null; // legacy; no longer reused for snoozing
   deadlineDate?: string | null; // YYYY-MM-DD, day precision
   deadlineAt?: string | null; // explicit time
