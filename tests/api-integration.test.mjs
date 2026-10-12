@@ -81,6 +81,14 @@ test('HTTP server performs real CRUD, deadlines and safe meeting merges', {timeo
 
  const invalidEvent=await call('POST','/loops/'+meeting.id+'/schedule',{kind:'event',date:'2026-10-18',at:null});
  assert.equal(invalidEvent.status,400);
+ const confirmed=await call('POST','/loops/'+meeting.id+'/confirm');
+ assert.equal(confirmed.status,200);
+ assert.equal(confirmed.json.type,'event');
+ assert.equal(confirmed.json.agreementStatus,'confirmed');
+ assert.equal((await call('POST','/loops/'+meeting.id+'/confirm')).status,400);
+ const eventDate=await call('POST','/loops/'+meeting.id+'/schedule',{kind:'event',date:'2026-10-18',at:null});
+ assert.equal(eventDate.status,200);
+ assert.equal(eventDate.json.eventDate,'2026-10-18');
  const deadline=await call('POST','/loops/'+task.id+'/schedule',{kind:'deadline',date:'2026-10-15',at:null});
  assert.equal(deadline.status,200);
  assert.equal(deadline.json.deadlineDate,'2026-10-15');
@@ -89,6 +97,26 @@ test('HTTP server performs real CRUD, deadlines and safe meeting merges', {timeo
  assert.equal(invalidDate.status,400);
  const foreignDate=await call('POST','/loops/'+anotherOwner.id+'/schedule',{kind:'deadline',date:'2026-10-16',at:null});
  assert.equal(foreignDate.status,404);
+ for(const invalid of [
+  {source:{text:'hacked'}},{seedTag:null},{mergedInto:meeting.id},
+  {deadlineDate:'2030-01-01'},{ownerId:anotherOwner.ownerId},
+  {type:'saved'},{spaceConfidence:0.99},{status:'surprise'}
+ ]){
+  const attempt=await call('PATCH','/loops/'+task.id,invalid);
+  assert.equal(attempt.status,400,JSON.stringify(invalid));
+ }
+ assert.equal((await call('PATCH','/loops/'+task.id,{status:'done'})).json.status,'done');
+ const reopened=await call('PATCH','/loops/'+task.id,{status:'open'});
+ assert.equal(reopened.json.status,'open');
+ assert.equal(reopened.json.completedAt,null);
+ const later=new Date(Date.now()+86400000).toISOString();
+ const putAside=await call('PATCH','/loops/'+task.id,{status:'snoozed',snoozedUntil:later,remindedAt:null});
+ assert.equal(putAside.status,200);
+ assert.equal(putAside.json.snoozedUntil,later);
+ const unsnoozed=await call('PATCH','/loops/'+task.id,{status:'open'});
+ assert.equal(unsnoozed.status,200);
+ assert.equal(unsnoozed.json.snoozedUntil,null);
+ assert.equal((await call('PATCH','/loops/'+task.id,{status:'snoozed',snoozedUntil:'2020-01-01T10:00:00Z'})).status,400);
 
  const person=await call('POST','/loops/'+meeting.id+'/participants',{name:'Маша'});
  assert.equal(person.status,200);
@@ -109,6 +137,16 @@ test('HTTP server performs real CRUD, deadlines and safe meeting merges', {timeo
  const afterMerge=await call('GET','/loops');
  assert.equal(afterMerge.json.find(x=>x.id===realB.id).status,'dismissed');
  assert.equal(afterMerge.json.find(x=>x.id===realB.id).mergedInto,realA.id);
+ assert.equal((await call('PATCH','/loops/'+realB.id,{status:'open'})).status,404);
+ assert.equal((await call('POST','/loops/'+realB.id+'/unmerge')).status,400);
+ assert.equal((await call('POST','/loops/'+anotherOwner.id+'/unmerge')).status,404);
+ const undone=await call('POST','/loops/'+realA.id+'/unmerge');
+ assert.equal(undone.status,200);
+ assert.equal(undone.json.restored.id,realB.id);
+ assert.equal(undone.json.restored.status,'open');
+ assert.equal(undone.json.primary.mergeHistory.length,0);
+ assert.equal(undone.json.primary.relatedSources.length,0);
+ assert.equal((await call('POST','/loops/'+realA.id+'/unmerge')).status,400);
  const corrected=await call('POST','/loops/'+task.id+'/correct',{choice:'saved',title:'Сохранить документы'});
  assert.equal(corrected.status,200);
  assert.equal(corrected.json.deadlineDate,null);
