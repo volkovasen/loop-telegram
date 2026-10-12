@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { DEFAULT_SPACES, normalizeExampleText } from './space-rules.mjs';
 import { normalizePerson, personKey, dedupeParticipants, mergePlanRecords } from './participants.mjs';
-import { DEMO_TAGS } from './demo-seeds.mjs';
+import { DEMO_TAGS, DEMO_SOURCE_TEXTS, makeDemoLoops } from './demo-seeds.mjs';
 
 // Keep all user data on Railway's persistent volume, never on its ephemeral app disk.
 const railwayVolume = process.env.RAILWAY_VOLUME_MOUNT_PATH;
@@ -23,7 +23,11 @@ async function ensureStore() {
 async function readAll() {
   await ensureStore();
   const raw = await fs.readFile(dataFile, 'utf8');
-  try { return JSON.parse(raw); } catch { return []; }
+  // Fail closed: a damaged loops.json must never be mistaken for an empty
+  // account and overwritten by the next /demo, forward or editing action.
+  const loops = JSON.parse(raw);
+  if (!Array.isArray(loops)) throw new Error('Invalid loops.json: expected an array');
+  return loops;
 }
 
 async function writeAll(loops) {
@@ -305,17 +309,65 @@ export async function mergeLoopPlans(ownerId,targetId,otherId){
  });
 }
 
+function validateDemoOwner(ownerId) {
+ if (!/^\d{4,20}$/.test(String(ownerId))) throw new SpaceError('Неверный Telegram-аккаунт.',401);
+}
+
 /**
- * Explicit cleanup for /demo clear. Only records marked by our demo fixture
- * generator belonging to the requesting Telegram user may be removed.
+ * A single serialized write ensures /demo is idempotent even if the user
+ * renames a test card, edits its type or sends /demo twice rapidly.
+ */
+export async function seedDemoLoops(ownerId, options = {}) {
+ validateDemoOwner(ownerId);
+ return enqueueWrite(async () => {
+  const loops = await readAll();
+  const already = new Set(loops.filter(item => String(item.ownerId)===String(ownerId)).map(item=>item.seedTag));
+  const created = makeDemoLoops(ownerId, options).filter(item => !already.has(item.seedTag));
+  if (created.length) {
+   loops.unshift(...created);
+   await writeAll(loops);
+  }
+  return created;
+ });
+}
+
+/**
+ * Explicit cleanup for /demo clear. Only tagged records owned by the sender
+ * are deleted. Manual meaning / Space correction examples from these fake
+ * messages are removed too; otherwise a demo could pollute future AI prompts.
  */
 export async function clearDemoLoops(ownerId) {
- if(!/^\d{4,20}$/.test(String(ownerId)))throw new SpaceError('Неверный Telegram-аккаунт.',401);
- return enqueueWrite(async()=>{
-  const loops=await readAll();
-  const remaining=loops.filter(item=>!(String(item.ownerId)===String(ownerId)&&DEMO_TAGS.includes(item.seedTag)));
-  const removed=loops.length-remaining.length;
-  if(removed)await writeAll(remaining);
-  return removed;
+ validateDemoOwner(ownerId);
+ return enqueueWrite(async () => {
+  const loops = await readAll();
+  const demo = loops.filter(item => String(item.ownerId)===String(ownerId) && DEMO_TAGS.includes(item.seedTag));
+  const remaining = loops.filter(item => !demo.includes(item));
+  const sourceKeys = new Set([
+   ...DEMO_SOURCE_TEXTS,
+   ...demo.map(item=>item.source?.text)
+  ].filter(Boolean).map(normalizeExampleText));
+  // A previous partial cleanup can be resumed even when the main cards have
+  // already been removed, using their fixed demo text from demo-seeds.mjs.
+  const corrections = await readMeaningRecords();
+  const withoutDemoCorrections = corrections.filter(item =>
+   !(String(item.ownerId)===String(ownerId) && sourceKeys.has(normalizeExampleText(item.text))));
+  const spaces = await readSpaceRecords();
+  let examplesChanged = false;
+  for (const item of spaces) {
+   if (String(item.ownerId)!==String(ownerId) || !Array.isArray(item.examples)) continue;
+   const filtered = item.examples.filter(example => !sourceKeys.has(normalizeExampleText(example.text)));
+   if (filtered.length !== item.examples.length) {
+    item.examples = filtered;
+    examplesChanged = true;
+   }
+  }
+  if (demo.length) await writeAll(remaining);
+  if (corrections.length !== withoutDemoCorrections.length) {
+   const tmp = `${meaningFile}.tmp`;
+   await fs.writeFile(tmp,JSON.stringify(withoutDemoCorrections,null,2),'utf8');
+   await fs.rename(tmp,meaningFile);
+  }
+  if (examplesChanged) await writeSpaceRecords(spaces);
+  return demo.length;
  });
 }
