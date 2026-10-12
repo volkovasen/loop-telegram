@@ -3,8 +3,7 @@ import { Bot, InlineKeyboard } from 'grammy';
 import { classifyMessage } from './classifier.mjs';
 import { classifyWithAI } from './ai-classifier.mjs';
 import { resolveAIConfig } from './ai-provider.mjs';
-import { makeDemoLoops } from './demo-seeds.mjs';
-import { addLoop, clearDemoLoops, readLoops, readSpaces, readMeaningCorrections, updateLoop } from './store.mjs';
+import { addLoop, clearDemoLoops, readLoops, readSpaces, readMeaningCorrections, seedDemoLoops, updateLoop } from './store.mjs';
 import { transcribeTelegramFile } from './transcribe.mjs';
 import { allowRequest } from './rate-limit.mjs';
 import { reminderAt } from './temporal.mjs';
@@ -130,16 +129,10 @@ bot.command('demo', async (ctx) => {
   }
   if (String(ctx.match ?? '').trim()) return ctx.reply('Используй /demo для двух карточек или /demo clear для очистки.');
   const timeZone = process.env.LOOP_TIMEZONE || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  const examples = makeDemoLoops(ownerId, { timeZone });
-  const existing = await readLoops(ownerId);
-  const created = [];
-  for (const example of examples) {
-    if (existing.some(item => item.seedTag === example.seedTag)) continue;
-    created.push(await addLoop(example));
-  }
+  const created = await seedDemoLoops(ownerId, { timeZone });
   const text = created.length
-    ? '🧪 Тестовые карточки добавлены в LOOP:\n\n1. Договориться о встрече с Ариной и Кириллом: можно менять участников и подтверждать встречу.\n2. Отправить документы: срок был вчера, должна появиться отметка «Просрочено».\n\nОбе помечены «ТЕСТ», это не реальные поручения.'
-    : '🧪 Обе тестовые карточки уже есть в твоём LOOP. Они не дублируются при повторной команде.';
+    ? `🧪 Добавлено тестовых карточек: ${created.length}.\n\nВ LOOP должны быть:\n1. Договориться о встрече с Ариной и Кириллом.\n2. Отправить документы с пометкой «Просрочено».\n\nОни помечены «ТЕСТ», это не настоящие дела. Удалить: /demo clear.`
+    : '🧪 Обе тестовые карточки уже созданы. Повторная команда не добавляет дубликаты. Удалить: /demo clear.';
   await ctx.reply(text, { reply_markup: appKeyboard() });
 });
 
