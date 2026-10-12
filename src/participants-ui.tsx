@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import type { OpenLoop } from './types/open-loop';
 
-export function ParticipantsEditor({loop,candidates,onAdd,onRemove,onMerge}:{
+export function ParticipantsEditor({loop,candidates,onAdd,onRemove,onMerge,onUndoMerge}:{
  loop:OpenLoop;
  candidates:OpenLoop[];
  onAdd:(name:string)=>Promise<string|null>;
  onRemove:(name:string)=>Promise<string|null>;
  onMerge:(otherId:string)=>Promise<string|null>;
+ onUndoMerge:()=>Promise<string|null>;
 }){
  const [name,setName]=useState('');
  const [otherId,setOtherId]=useState('');
@@ -49,6 +50,10 @@ export function ParticipantsEditor({loop,candidates,onAdd,onRemove,onMerge}:{
    <label>Добавить человека<input value={name} maxLength={70} disabled={busy} placeholder="Например, Кирилл" onChange={e=>{setName(e.target.value);setNotice('');}}/></label>
    <button type="submit" disabled={busy||name.trim().length<2}>Добавить</button>
   </form>
+  {!!loop.mergeHistory?.length&&<div className="detail-merge">
+   <small>Объединено карточек: {loop.mergeHistory.length}. Можно вернуть последнюю.</small>
+   <button type="button" disabled={busy} onClick={()=>void run(onUndoMerge,'Последнее объединение отменено')}>Отменить последнее объединение</button>
+  </div>}
   {!!candidates.length&&<div className="detail-merge">
    <label>Объединить с другой договорённостью<select value={otherId} disabled={busy} onChange={e=>setOtherId(e.target.value)}>
     <option value="">Выбери карточку…</option>
