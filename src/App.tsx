@@ -30,7 +30,7 @@ function actionHint(loop:OpenLoop){return loop.nextActionText??(loop.type==='rep
 const demoLoops: OpenLoop[] = [
  {id:'demo-documents',type:'todo',kind:'request',nextAction:'do',status:'open',
   title:'Отправить документы',person:{name:'Саша'},space:'Работа',confidence:1,
-  deadlineDate:new Date(Date.now()-86400000).toLocaleDateString('en-CA'),
+  deadlineDate:new Date(Date.now()-86400000).toISOString().slice(0,10),
   source:{messageId:-1,receivedAt:new Date().toISOString(),text:'[ТЕСТ] Скинь мне документы до завтра, пожалуйста. Нужен договор и паспортные данные.'},createdAt:new Date().toISOString()},
  {id:'demo-meeting',type:'reply',kind:'plan',agreementStatus:'proposed',nextAction:'coordinate',status:'open',
   title:'Встреча в субботу',person:{name:'Арина'},participants:[{name:'Кирилл'}],
