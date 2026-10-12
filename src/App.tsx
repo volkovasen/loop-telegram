@@ -69,6 +69,8 @@ export function App(){
  const attention=useMemo(()=>{const now=Date.now();return loops.filter(l=>l.type!=='saved'&&((l.status==='open'||l.status==='suggested')||(l.status==='snoozed'&&(l.snoozedUntil||l.dueAt)&&new Date(l.snoozedUntil||l.dueAt||'').getTime()<=now)))},[loops]);
  const visibleAttention=useMemo(()=>(demoMode?demoLoops:attention).filter(l=>space==='Все'||l.space===space),[attention,space,demoMode]);
  const history=useMemo(()=>loops.filter(l=>l.status==='done').sort((a,b)=>(b.completedAt??'').localeCompare(a.completedAt??'')),[loops]);
+ const snoozed=useMemo(()=>loops.filter(l=>l.status==='snoozed'&&!l.mergedInto && !(attention.some(active=>active.id===l.id))),[loops,attention]);
+ const dismissed=useMemo(()=>loops.filter(l=>l.status==='dismissed'&&!l.mergedInto),[loops]);
  const allMemory=useMemo(()=>loops.filter(l=>l.type==='saved'&&l.status!=='dismissed'),[loops]);
  const memory=memoryQuery.trim()?memoryResults??[]:allMemory;
  const people=useMemo(()=>{const map=new Map<string,OpenLoop[]>();for(const loop of loops){
@@ -142,17 +144,40 @@ export function App(){
    return null;
   }catch{return 'Не удалось связаться с LOOP. Попробуй ещё раз.'}
  }
- async function confirmPlan(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;await patchLoop(loop.id,{type:'event',kind:'plan',agreementStatus:'confirmed',nextAction:'none',nextActionText:null,status:'open'})}
+ async function confirmPlan(loop:OpenLoop){
+  if(loop.id.startsWith('demo-'))return;
+  try{
+   const res=await fetch(`${API_URL}/loops/${encodeURIComponent(loop.id)}/confirm`,{method:'POST',headers:authHeaders()});
+   const result=await res.json();
+   if(!res.ok){setActionError(result.error??'Не удалось подтвердить встречу');return;}
+   setLoops(items=>items.map(item=>item.id===result.id?result:item));
+   setSelected(item=>item?.id===result.id?result:item);
+  }catch{setActionError('Нет соединения. Не удалось подтвердить встречу.')}
+ }
+ async function reopenLoop(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;await patchLoop(loop.id,{status:'open'});}
+ async function undoMerge(loop:OpenLoop):Promise<string|null>{
+  try{
+   const res=await fetch(`${API_URL}/loops/${encodeURIComponent(loop.id)}/unmerge`,{
+    method:'POST',headers:authHeaders()
+   });
+   const result=await res.json();
+   if(!res.ok)return result.error??'Не удалось отменить объединение';
+   const {primary,restored}=result as {primary:OpenLoop;restored:OpenLoop};
+   setLoops(items=>items.map(item=>item.id===primary.id?primary:item.id===restored.id?restored:item));
+   setSelected(item=>item?.id===primary.id?primary:item);
+   return null;
+  }catch{return 'Нет соединения. Не удалось восстановить встречу.'}
+ }
  async function dismissPlan(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;if(await patchLoop(loop.id,{status:'dismissed'}))setSelected(null)}
  const firstRun=hasLoaded&&connected&&loops.length===0&&!demoMode;
  const title=tab==='today'?'Сегодня':tab==='people'?'Люди':'Память';
  return <main className="shell"><header><div className="eyebrow">LOOP</div><h1>{title}</h1><p>{tab==='today'&&demoMode?'Демо · карточки для просмотра на телефоне':!hasLoaded?'Загружаем сообщения…':!connected?'LOOP не подключён':firstRun?'Твои важные сообщения будут здесь':tab==='today'?(attention.length?attentionText(attention.length):'Хвостов нет. Красиво.'):tab==='people'?`${people.length} человек в контексте`:`${allMemory.length} сохранено`}</p></header>
  {actionError&&<div className="action-error" role="alert">{actionError}<button type="button" onClick={()=>setActionError('')} aria-label="Скрыть ошибку"><X size={15}/></button></div>}
- {tab==='today'&&(hasLoaded&&!connected&&!loops.length&&!demoMode?<div className="empty"><strong>Не удалось загрузить сообщения</strong><span>Проверь соединение и открой LOOP через Telegram.</span></div>:<TodayView loops={visibleAttention} history={history} space={space} spaces={spaceDefinitions} firstRun={firstRun} onSpace={setSpace} onManage={()=>setSpaceSheet(true)} onSelect={setSelected} onAssign={assignSpace}/>)} 
+ {tab==='today'&&(hasLoaded&&!connected&&!loops.length&&!demoMode?<div className="empty"><strong>Не удалось загрузить сообщения</strong><span>Проверь соединение и открой LOOP через Telegram.</span></div>:<TodayView loops={visibleAttention} history={history} snoozed={snoozed} dismissed={dismissed} space={space} spaces={spaceDefinitions} firstRun={firstRun} onSpace={setSpace} onManage={()=>setSpaceSheet(true)} onSelect={setSelected} onAssign={assignSpace}/>)} 
  {tab==='people'&&<PeopleView people={people} selectedName={personName} onSelectName={setPersonName} onSelectLoop={setSelected}/>} 
  {tab==='memory'&&<MemoryView query={memoryQuery} onQuery={setMemoryQuery} loops={memory} searching={memorySearching} onSelect={setSelected}/>} 
  <nav><button className={tab==='today'?'active':''} onClick={()=>setTab('today')}><Clock3/>Сегодня</button><button className={tab==='people'?'active':''} onClick={()=>setTab('people')}><Users/>Люди</button><button className={tab==='memory'?'active':''} onClick={()=>setTab('memory')}><Brain/>Память</button></nav>
- {selected&&<LoopDetail loop={selected} candidates={loops.filter(l=>l.id!==selected.id&&!l.mergedInto&&l.status!=='dismissed'&&l.status!=='done'&&(l.kind==='plan'||l.type==='event'))} spaces={spaceDefinitions} onAssign={assignSpace} onCorrect={correctMeaning} onSchedule={saveSchedule} onAddParticipant={saveParticipant} onRemoveParticipant={removeParticipant} onMerge={mergeMeeting} onConfirm={confirmPlan} onDismiss={dismissPlan} onClose={()=>setSelected(null)} onDone={done} onSnooze={snooze}/>}
+ {selected&&<LoopDetail loop={selected} candidates={loops.filter(l=>l.id!==selected.id&&!l.mergedInto&&l.status!=='dismissed'&&l.status!=='done'&&(l.kind==='plan'||l.type==='event'))} spaces={spaceDefinitions} onAssign={assignSpace} onCorrect={correctMeaning} onSchedule={saveSchedule} onAddParticipant={saveParticipant} onRemoveParticipant={removeParticipant} onMerge={mergeMeeting} onUndoMerge={undoMerge} onReopen={reopenLoop} onConfirm={confirmPlan} onDismiss={dismissPlan} onClose={()=>setSelected(null)} onDone={done} onSnooze={snooze}/>}
  {spaceSheet&&<SpacesSheet spaces={spaceDefinitions} onClose={()=>setSpaceSheet(false)} onSave={saveSpace} onDelete={removeSpace}/>}</main>
 }
 function FirstRunEmpty(){
@@ -170,7 +195,7 @@ function FirstRunEmpty(){
   <div className="first-run-privacy"><ShieldCheck size={17}/><span>LOOP видит только то, что ты ему пересылаешь.</span></div>
  </section>
 }
-function TodayView({loops,history,space,spaces,firstRun,onSpace,onManage,onSelect,onAssign}:{loops:OpenLoop[];history:OpenLoop[];space:SpaceFilter;spaces:SpaceDefinition[];firstRun:boolean;onSpace:(s:SpaceFilter)=>void;onManage:()=>void;onSelect:(l:OpenLoop)=>void;onAssign:(l:OpenLoop,name:string)=>void}){
+function TodayView({loops,history,snoozed,dismissed,space,spaces,firstRun,onSpace,onManage,onSelect,onAssign}:{loops:OpenLoop[];history:OpenLoop[];snoozed:OpenLoop[];dismissed:OpenLoop[];space:SpaceFilter;spaces:SpaceDefinition[];firstRun:boolean;onSpace:(s:SpaceFilter)=>void;onManage:()=>void;onSelect:(l:OpenLoop)=>void;onAssign:(l:OpenLoop,name:string)=>void}){
  const unassigned=space==='Все'?loops.filter(loop=>!loop.space):[];
  const assigned=loops.filter(loop=>Boolean(loop.space)).sort((a,b)=>{
   const rank=(loop:OpenLoop)=>commitmentBadge(loop)==='Просрочено'||commitmentBadge(loop)==='Обещание задерживается'?0:commitmentBadge(loop)==='Событие прошло'?2:1;
@@ -190,7 +215,9 @@ function TodayView({loops,history,space,spaces,firstRun,onSpace,onManage,onSelec
    </section>}
    <section className="stack">{assigned.map(loop=><LoopCard key={loop.id} loop={loop} onOpen={()=>onSelect(loop)}/>)}</section>
    {!loops.length&&<div className="empty"><Check size={26}/><strong>{space==='Все'?'Сейчас ничего не требует внимания':'В этом разделе пусто'}</strong><span>{space==='Все'?'Все задачи выполнены или отложены. Новые появятся после пересылки боту.':'Попробуй выбрать «Все», чтобы увидеть остальные задачи.'}</span></div>}
-   {!!history.length&&<section className="history-block"><div className="section-title">Выполнено</div>{history.slice(0,8).map(loop=><button key={loop.id} className="history-row" onClick={()=>onSelect(loop)}><span className="history-check">✓</span><span><strong>{loop.title}</strong><small>{loop.person?.name??loop.space??'LOOP'} · {formatDate(loop.completedAt)}</small></span><ChevronRight size={16}/></button>)}</section>}
+   {!!snoozed.length&&space==='Все'&&<section className="history-block"><div className="section-title">Отложено · {snoozed.length}</div>{snoozed.slice(0,8).map(loop=><button key={loop.id} className="history-row" onClick={()=>onSelect(loop)}><span className="history-check">◷</span><span><strong>{loop.title}</strong><small>Вернуть раньше · {formatDate(loop.snoozedUntil||loop.dueAt)}</small></span><ChevronRight size={16}/></button>)}</section>}
+   {!!history.length&&space==='Все'&&<section className="history-block"><div className="section-title">Выполнено · {history.length}</div>{history.slice(0,8).map(loop=><button key={loop.id} className="history-row" onClick={()=>onSelect(loop)}><span className="history-check">✓</span><span><strong>{loop.title}</strong><small>{loop.person?.name??loop.space??'LOOP'} · {formatDate(loop.completedAt)}</small></span><ChevronRight size={16}/></button>)}</section>}
+   {!!dismissed.length&&space==='Все'&&<section className="history-block"><div className="section-title">Неактуально · {dismissed.length}</div>{dismissed.slice(0,8).map(loop=><button key={loop.id} className="history-row" onClick={()=>onSelect(loop)}><span className="history-check">↩</span><span><strong>{loop.title}</strong><small>Можно вернуть в работу</small></span><ChevronRight size={16}/></button>)}</section>
   </>}
  </>;
 }
@@ -227,10 +254,12 @@ function LoopCard({loop,onOpen}:{loop:OpenLoop;onOpen:()=>void}){
   </div>}
  </article>
 }
-function LoopDetail({loop,candidates,spaces,onAssign,onCorrect,onSchedule,onAddParticipant,onRemoveParticipant,onMerge,onConfirm,onDismiss,onClose,onDone,onSnooze}:{loop:OpenLoop;candidates:OpenLoop[];spaces:SpaceDefinition[];onAssign:(loop:OpenLoop,name:string)=>void;onCorrect:(loop:OpenLoop,choice:string,title:string)=>Promise<string|null>;onSchedule:(loop:OpenLoop,kind:'deadline'|'event',date:string|null,at:string|null)=>Promise<string|null>;
+function LoopDetail({loop,candidates,spaces,onAssign,onCorrect,onSchedule,onAddParticipant,onRemoveParticipant,onMerge,onUndoMerge,onReopen,onConfirm,onDismiss,onClose,onDone,onSnooze}:{loop:OpenLoop;candidates:OpenLoop[];spaces:SpaceDefinition[];onAssign:(loop:OpenLoop,name:string)=>void;onCorrect:(loop:OpenLoop,choice:string,title:string)=>Promise<string|null>;onSchedule:(loop:OpenLoop,kind:'deadline'|'event',date:string|null,at:string|null)=>Promise<string|null>;
  onAddParticipant:(loop:OpenLoop,name:string)=>Promise<string|null>;
  onRemoveParticipant:(loop:OpenLoop,name:string)=>Promise<string|null>;
  onMerge:(loop:OpenLoop,otherId:string)=>Promise<string|null>;
+ onUndoMerge:(loop:OpenLoop)=>Promise<string|null>;
+ onReopen:(loop:OpenLoop)=>void;
  onConfirm:(l:OpenLoop)=>void;onDismiss:(l:OpenLoop)=>void;onClose:()=>void;onDone:(l:OpenLoop)=>void;onSnooze:(l:OpenLoop)=>void}){
  const chat=telegramLink(loop),calendar=googleCalendarLink(loop),m=meta[loop.type],isDone=loop.status==='done',isDemo=loop.id.startsWith('demo-');
  const proposal=loop.kind==='plan'&&(loop.agreementStatus==='proposed'||loop.agreementStatus==='unknown');
@@ -256,11 +285,13 @@ function LoopDetail({loop,candidates,spaces,onAssign,onCorrect,onSchedule,onAddP
   {!isDemo&&loop.type!=='saved'&&<ParticipantsEditor loop={loop} candidates={(loop.kind==='plan'||loop.type==='event')?candidates:[]}
    onAdd={name=>onAddParticipant(loop,name)}
    onRemove={name=>onRemoveParticipant(loop,name)}
-   onMerge={id=>onMerge(loop,id)}/>}
+   onMerge={id=>onMerge(loop,id)}
+   onUndoMerge={()=>onUndoMerge(loop)}/>}
   {loop.source.text&&<div className="source-block"><small>{loop.source.mediaKind?'Расшифровка':'Исходное сообщение'}</small><p>“{loop.source.text}”</p></div>}
   <div className="detail-actions">{chat&&<a href={chat}>Открыть чат в Telegram</a>}{calendar&&<a href={calendar} target="_blank" rel="noreferrer"><CalendarPlus size={17}/>В календарь</a>}</div>
   {isDemo&&<p style={{color:'#9da29b',fontSize:12}}>Демо-карточка. Действия не сохраняются.</p>}
   {!isDemo&&!isDone&&loop.status!=='dismissed'&&proposal&&<div className="sheet-footer"><button className="primary" onClick={()=>onConfirm(loop)}>Договорились</button><button className="ghost" onClick={()=>onDismiss(loop)}>Неактуально</button></div>}
-  {!isDemo&&!isDone&&loop.status!=='dismissed'&&!proposal&&loop.type!=='saved'&&<div className="sheet-footer"><button className="primary" onClick={()=>onDone(loop)}>{loop.type==='waiting'?'Получено':'Готово'}</button><button className="ghost" onClick={()=>onSnooze(loop)}>До завтра</button></div>}
+  {!isDemo&&['done','dismissed','snoozed'].includes(loop.status)&&!loop.mergedInto&&<div className="sheet-footer"><button className="primary" onClick={()=>onReopen(loop)}>Вернуть в работу</button></div>}
+  {!isDemo&&!isDone&&loop.status!=='dismissed'&&!proposal&&loop.type!=='saved'&&loop.status!=='snoozed'&&<div className="sheet-footer"><button className="primary" onClick={()=>onDone(loop)}>{loop.type==='waiting'?'Получено':'Готово'}</button><button className="ghost" onClick={()=>onSnooze(loop)}>До завтра</button></div>}
  </section></div>;
 }
