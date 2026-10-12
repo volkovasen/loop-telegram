@@ -140,3 +140,9 @@ test('broken JSON is rejected, not silently overwritten by /demo',async (t)=>{
  await assert.rejects(()=>store.seedDemoLoops('123456789'),SyntaxError);
  assert.equal(await fs.readFile(filename,'utf8'),before);
 });
+
+test('yesterday is previous local calendar day even after a DST spring-forward',()=>{
+ const now=new Date('2026-03-09T00:30:00-04:00');
+ const items=makeDemoLoops('123456789',{now,timeZone:'America/New_York'});
+ assert.equal(items[1].deadlineDate,'2026-03-08');
+});
