@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { DEFAULT_SPACES, normalizeExampleText } from './space-rules.mjs';
-import { normalizePerson, personKey, dedupeParticipants, mergePlanRecords } from './participants.mjs';
+import { normalizePerson, personKey, dedupeParticipants, mergePlanRecords, unmergePlanRecords } from './participants.mjs';
 import { DEMO_TAGS, DEMO_SOURCE_TEXTS, makeDemoLoops } from './demo-seeds.mjs';
 
 // Keep all user data on Railway's persistent volume, never on its ephemeral app disk.
@@ -369,5 +369,30 @@ export async function clearDemoLoops(ownerId) {
   }
   if (examplesChanged) await writeSpaceRecords(spaces);
   return demo.length;
+ });
+}
+
+/**
+ * Reopen the secondary meeting and restore the main meeting's links,
+ * without touching either meeting's title, date or unrelated user content.
+ */
+export async function undoLastLoopMerge(ownerId, primaryId) {
+ return enqueueWrite(async()=>{
+  const loops=await readAll();
+  const owner=String(ownerId);
+  const firstIndex=loops.findIndex(item=>item.id===primaryId&&String(item.ownerId)===owner);
+  if(firstIndex<0)throw new SpaceError('Карточка не найдена.',404);
+  const primary=loops[firstIndex];
+  const last=primary.mergeHistory?.at(-1);
+  if(!last)throw new SpaceError('Нет объединения, которое можно отменить.');
+  const secondIndex=loops.findIndex(item=>item.id===last.secondaryId&&String(item.ownerId)===owner);
+  if(secondIndex<0)throw new SpaceError('Исходная карточка не найдена.',404);
+  let result;
+  try { result=unmergePlanRecords(primary,loops[secondIndex]); }
+  catch(error){throw new SpaceError(error.message);}
+  loops[firstIndex]=result.primary;
+  loops[secondIndex]=result.secondary;
+  await writeAll(loops);
+  return {primary:result.primary,restored:result.secondary};
  });
 }
