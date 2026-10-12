@@ -2,7 +2,7 @@ import 'dotenv/config';
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { SpaceError, addLoopParticipant, createSpace, deleteSpace, editSpace, mergeLoopPlans, readLoops, readSpaces, recordSpaceCorrection, rememberMeaningCorrection, removeLoopParticipant, updateLoop } from './store.mjs';
+import { SpaceError, addLoopParticipant, createSpace, deleteSpace, editSpace, mergeLoopPlans, undoLastLoopMerge, readLoops, readSpaces, recordSpaceCorrection, rememberMeaningCorrection, removeLoopParticipant, updateLoop } from './store.mjs';
 import { meaningPatch } from './meaning-memory.mjs';
 import { isConfirmedEvent, supportsDeadline, validDate, validInstant } from './temporal.mjs';
 import { searchMemory } from './memory-search.mjs';
@@ -122,12 +122,30 @@ const server = http.createServer(async (req, res) => {
       return send(res,200,await mergeLoopPlans(user.id,decodeURIComponent(mergeMatch[1]),input.otherId));
     }
 
+    const unmergeMatch=req.url?.match(/^\/loops\/([^/]+)\/unmerge$/);
+    if(req.method==='POST' && unmergeMatch) {
+      return send(res,200,await undoLastLoopMerge(user.id,decodeURIComponent(unmergeMatch[1])));
+    }
+
+    const confirmMatch=req.url?.match(/^\/loops\/([^/]+)\/confirm$/);
+    if(req.method==='POST' && confirmMatch){
+      const current=(await readLoops(user.id)).find(item=>item.id===decodeURIComponent(confirmMatch[1]));
+      if(!current || current.mergedInto)return send(res,404,{error:'Карточка не найдена.'});
+      if(current.kind!=='plan' || !['proposed','unknown'].includes(current.agreementStatus) || ['done','dismissed'].includes(current.status))
+        throw new SpaceError('Можно подтвердить только открытую договорённость.');
+      const updated=await updateLoop(current.id,{
+        type:'event',kind:'plan',agreementStatus:'confirmed',
+        nextAction:'none',nextActionText:null,status:'open'
+      },user.id);
+      return send(res,200,updated);
+    }
+
     const scheduleMatch = req.url?.match(/^\/loops\/([^/]+)\/schedule$/);
     if (req.method === 'POST' && scheduleMatch) {
       const body = await readJson(req, 2000);
       if (!body || typeof body !== 'object' || Array.isArray(body)) throw new SpaceError('Неверный формат срока.');
       const current = (await readLoops(user.id)).find(item => item.id === decodeURIComponent(scheduleMatch[1]));
-      if (!current) return send(res, 404, { error: 'Карточка не найдена.' });
+      if (!current || current.mergedInto) return send(res, 404, { error: 'Карточка не найдена.' });
       const kind = body.kind;
       if (kind !== 'deadline' && kind !== 'event') throw new SpaceError('Неизвестный тип даты.');
       if (kind === 'deadline' && !supportsDeadline(current)) throw new SpaceError('Для этой карточки нельзя задать срок.');
@@ -149,7 +167,7 @@ const server = http.createServer(async (req, res) => {
       if(!body || typeof body!=='object' || Array.isArray(body))throw new SpaceError('Ожидался JSON-объект.');
       const id=decodeURIComponent(correctionMatch[1]);
       const old=(await readLoops(user.id)).find(item=>item.id===id);
-      if(!old)return send(res,404,{error:'Карточка не найдена'});
+      if(!old || old.mergedInto)return send(res,404,{error:'Карточка не найдена'});
       let patch;
       try{patch=meaningPatch(body.choice,body.title,old);}
       catch(error){throw new SpaceError(error.message);}
@@ -163,19 +181,42 @@ const server = http.createServer(async (req, res) => {
 
     const match = req.url?.match(/^\/loops\/([^/]+)$/);
     if (req.method === 'PATCH' && match) {
-      const patch = await readJson(req, 100_000);
-      if (patch === null || Array.isArray(patch) || typeof patch !== 'object') throw new SpaceError('Ожидался JSON-объект.');
-      if (Object.hasOwn(patch, 'space')) {
-        if (patch.space !== null && (typeof patch.space !== 'string' || !(await readSpaces(user.id)).some(item => item.name === patch.space))) {
+      const input = await readJson(req, 2000);
+      if (!input || Array.isArray(input) || typeof input !== 'object') throw new SpaceError('Ожидался JSON-объект.');
+      const id=decodeURIComponent(match[1]);
+      const before=(await readLoops(user.id)).find(item=>item.id===id);
+      if(!before || before.mergedInto)return send(res,404,{error:'Карточка не найдена.'});
+      // Source, users, seed tags, links, AI confidence and dates are
+      // deliberately not mutable through the generic endpoint.
+      const allowed=new Set(['space','spaceConfidence','status','completedAt','snoozedUntil','remindedAt']);
+      if(!Object.keys(input).length || Object.keys(input).some(key=>!allowed.has(key)))
+        throw new SpaceError('Это поле карточки нельзя изменять напрямую.');
+      const patch={...input};
+      if(Object.hasOwn(patch,'space')){
+        if(patch.space!==null && (typeof patch.space!=='string' || !(await readSpaces(user.id)).some(item=>item.name===patch.space)))
           throw new SpaceError('Такого Space нет.');
+        patch.spaceConfidence=patch.space?1:0;
+      }else if(Object.hasOwn(patch,'spaceConfidence'))throw new SpaceError('Уверенность темы нельзя менять отдельно.');
+      if(Object.hasOwn(patch,'status')){
+        if(!['open','done','snoozed','dismissed'].includes(patch.status))throw new SpaceError('Недопустимый статус.');
+        if(patch.status==='done'){
+          patch.completedAt=new Date().toISOString();
+          patch.snoozedUntil=null;
+        }else if(patch.status==='snoozed'){
+          if(!validInstant(patch.snoozedUntil)||Date.parse(patch.snoozedUntil)<=Date.now())
+            throw new SpaceError('Выбери будущее время откладывания.');
+          patch.completedAt=null;
+          patch.remindedAt=null;
+        }else{
+          patch.completedAt=null;
+          patch.snoozedUntil=null;
         }
-      }
-      const before = Object.hasOwn(patch, 'space') ? (await readLoops(user.id)).find(item => item.id === match[1]) : null;
-      const updated = await updateLoop(match[1], patch, user.id);
-      if (updated && before && before.space !== updated.space) {
-        await recordSpaceCorrection(user.id, updated.space, updated.source?.text, updated.source?.authorName);
-      }
-      return updated ? send(res, 200, updated) : send(res, 404, { error: 'Loop not found' });
+      }else if(['completedAt','snoozedUntil','remindedAt'].some(key=>Object.hasOwn(patch,key)))
+        throw new SpaceError('Дату действия можно изменить только вместе со статусом.');
+      const updated=await updateLoop(id,patch,user.id);
+      if(updated && Object.hasOwn(input,'space') && before.space!==updated.space)
+        await recordSpaceCorrection(user.id,updated.space,updated.source?.text,updated.source?.authorName);
+      return updated?send(res,200,updated):send(res,404,{error:'Карточка не найдена.'});
     }
 
     return send(res, 404, { error: 'Not found' });
