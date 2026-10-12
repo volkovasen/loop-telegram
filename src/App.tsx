@@ -48,9 +48,14 @@ function googleCalendarLink(loop:OpenLoop){if(loop.agreementStatus==='proposed'|
 
 export function App(){
  const demoMode=import.meta.env.DEV&&new URLSearchParams(window.location.search).has('demo');
- const[loops,setLoops]=useState<OpenLoop[]>([]),[spaceDefinitions,setSpaceDefinitions]=useState<SpaceDefinition[]>([]),[spaceSheet,setSpaceSheet]=useState(false),[actionError,setActionError]=useState(''),[connected,setConnected]=useState(false),[hasLoaded,setHasLoaded]=useState(false),[tab,setTab]=useState<Tab>('today'),[space,setSpace]=useState<SpaceFilter>('Все'),[selected,setSelected]=useState<OpenLoop|null>(null),[personName,setPersonName]=useState<string|null>(null),[memoryQuery,setMemoryQuery]=useState(''),[memoryResults,setMemoryResults]=useState<OpenLoop[]|null>(null),[memorySearching,setMemorySearching]=useState(false);
+ const[loops,setLoops]=useState<OpenLoop[]>([]),[spaceDefinitions,setSpaceDefinitions]=useState<SpaceDefinition[]>([]),[spaceSheet,setSpaceSheet]=useState(false),[actionError,setActionError]=useState(''),[connected,setConnected]=useState(false),[hasLoaded,setHasLoaded]=useState(false),[tab,setTab]=useState<Tab>('today'),[space,setSpace]=useState<SpaceFilter>('Все'),[selected,setSelected]=useState<OpenLoop|null>(null),[personName,setPersonName]=useState<string|null>(null),[memoryQuery,setMemoryQuery]=useState(''),[memoryResults,setMemoryResults]=useState<OpenLoop[]|null>(null),[memorySearching,setMemorySearching]=useState(false),[topNotice,setTopNotice]=useState('');
  async function loadLoops(){try{const res=await fetch(`${API_URL}/loops`,{headers:authHeaders()});if(!res.ok)throw new Error();setLoops(await res.json());setConnected(true)}catch{setConnected(false)}finally{setHasLoaded(true)}}
  async function loadSpaces(){try{const res=await fetch(`${API_URL}/spaces`,{headers:authHeaders()});if(!res.ok)throw new Error();setSpaceDefinitions(await res.json())}catch{setActionError('Не удалось загрузить Spaces. Проверь соединение.')}}
+ useEffect(()=>{
+  if(!topNotice)return;
+  const timer=window.setTimeout(()=>setTopNotice(''),3200);
+  return()=>window.clearTimeout(timer);
+ },[topNotice]);
  async function saveSpace(draft:{id?:string;name:string;description:string}):Promise<string|null>{
   try{
    const original=spaceDefinitions.find(item=>item.id===draft.id);
@@ -195,14 +200,14 @@ export function App(){
  async function dismissPlan(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;if(await patchLoop(loop.id,{status:'dismissed'}))setSelected(null)}
  const firstRun=hasLoaded&&connected&&loops.length===0&&!demoMode;
  const title=tab==='today'?'Сегодня':tab==='people'?'Люди':'Память';
- return <main className="shell"><header><div className="eyebrow">LOOP</div><h1>{title}</h1><p>{tab==='today'&&demoMode?'Демо · карточки для просмотра на телефоне':!hasLoaded?'Загружаем сообщения…':!connected?'LOOP не подключён':firstRun?'Твои важные сообщения будут здесь':tab==='today'?(attention.length?attentionText(attention.length):'Хвостов нет. Красиво.'):tab==='people'?`${people.length} человек в контексте`:`${allMemory.length} сохранено`}</p></header>
+ return <main className="shell">{topNotice&&<div className="loop-top-toast" role="status" aria-live="polite"><span className="loop-top-toast-check"><Check size={19}/></span><strong>{topNotice}</strong><button type="button" aria-label="Закрыть уведомление" onClick={()=>setTopNotice('')}><X size={19}/></button></div>}<header><div className="eyebrow">LOOP</div><h1>{title}</h1><p>{tab==='today'&&demoMode?'Демо · карточки для просмотра на телефоне':!hasLoaded?'Загружаем сообщения…':!connected?'LOOP не подключён':firstRun?'Твои важные сообщения будут здесь':tab==='today'?(attention.length?attentionText(attention.length):'Хвостов нет. Красиво.'):tab==='people'?`${people.length} человек в контексте`:`${allMemory.length} сохранено`}</p></header>
  {actionError&&<div className="action-error" role="alert">{actionError}<button type="button" onClick={()=>setActionError('')} aria-label="Скрыть ошибку"><X size={15}/></button></div>}
  {tab==='today'&&(hasLoaded&&!connected&&!loops.length&&!demoMode?<div className="empty"><strong>Не удалось загрузить сообщения</strong><span>Проверь соединение и открой LOOP через Telegram.</span></div>:<TodayView loops={visibleAttention} history={history} snoozed={snoozed} dismissed={dismissed} space={space} spaces={spaceDefinitions} firstRun={firstRun} onSpace={setSpace} onManage={()=>setSpaceSheet(true)} onSelect={setSelected} onAssign={assignSpace}/>)} 
  {tab==='people'&&<PeopleView people={people} selectedName={personName} onSelectName={setPersonName} onSelectLoop={setSelected}/>} 
  {tab==='memory'&&<MemoryView query={memoryQuery} onQuery={setMemoryQuery} loops={memory} searching={memorySearching} onSelect={setSelected}/>} 
  <nav><button className={tab==='today'?'active':''} onClick={()=>setTab('today')}><Clock3/>Сегодня</button><button className={tab==='people'?'active':''} onClick={()=>setTab('people')}><Users/>Люди</button><button className={tab==='memory'?'active':''} onClick={()=>setTab('memory')}><Brain/>Память</button></nav>
  {selected&&<LoopDetail loop={selected} candidates={loops.filter(l=>l.id!==selected.id&&!l.mergedInto&&l.status!=='dismissed'&&l.status!=='done'&&(l.kind==='plan'||l.type==='event'))} spaces={spaceDefinitions} onAssign={assignSpace} onCorrect={correctMeaning} onSchedule={saveSchedule} onAddParticipant={saveParticipant} onRemoveParticipant={removeParticipant} onMerge={mergeMeeting} onUndoMerge={undoMerge} onReopen={reopenLoop} onConfirm={confirmPlan} onDismiss={dismissPlan} onClose={()=>setSelected(null)} onDone={done} onSnooze={snooze}/>}
- {spaceSheet&&<SpacesSheet spaces={spaceDefinitions} onClose={()=>setSpaceSheet(false)} onSave={saveSpace} onDelete={removeSpace}/>}</main>
+ {spaceSheet&&<SpacesSheet spaces={spaceDefinitions} onClose={()=>setSpaceSheet(false)} onSave={saveSpace} onDelete={removeSpace} onNotice={setTopNotice}/>}</main>
 }
 function FirstRunEmpty(){
  return <section className="first-run" aria-labelledby="first-run-title">
@@ -229,7 +234,7 @@ function TodayView({loops,history,snoozed,dismissed,space,spaces,firstRun,onSpac
  return <>
   <div className="spaces-bar">
    <div className="spaces">{filterNames.map(item=><button type="button" key={item} className={space===item?'selected':''} onClick={()=>onSpace(item)}>{item==='Дом'&&<House size={14}/>} {item==='Работа'&&<Briefcase size={14}/>} {item==='Личное'&&<UserRound size={14}/>} {item}</button>)}</div>
-   <button type="button" className="space-manage-button" onClick={onManage}><FolderPlus size={15}/> + Space</button>
+   <button type="button" className="space-manage-button" onClick={onManage} aria-label="Управление темами" title="Управление темами"><FolderPlus size={23}/></button>
   </div>
   {firstRun?<FirstRunEmpty/>:<>
    {unassigned.length>0&&<section className="unassigned-section">
