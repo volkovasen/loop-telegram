@@ -10,10 +10,13 @@ export function UnassignedCard({ loop, spaces, onAssign, onOpen }: {
   onOpen: (loop: OpenLoop) => void;
 }) {
   return <article className="unassigned-card">
-    <div className="unassigned-byline">{loop.person?.name ?? 'Из Telegram'} · {loop.type === 'event' ? 'Событие' : 'Нужно распределить'}</div>
-    <h3>{loop.title}</h3>
-    {commitmentBadge(loop)&&<small className="spaces-form-error">{commitmentBadge(loop)}</small>}
-    {loop.source.text && <p className="unassigned-source">{loop.source.text}</p>}
+    <button type="button" className="unassigned-open" onClick={() => onOpen(loop)}
+      aria-label={`Открыть задачу «${loop.title}» и прочитать сообщение`}>
+      <div className="unassigned-byline">{loop.person?.name ?? 'Из Telegram'} · {loop.type === 'event' ? 'Событие' : 'Без темы'}</div>
+      {commitmentBadge(loop)&&<span className="unassigned-priority">{commitmentBadge(loop)}</span>}
+      <h3>{loop.title}</h3>
+      <span className="unassigned-open-caption">Прочитать сообщение <ChevronRight size={16}/></span>
+    </button>
     <div className="unassigned-actions">
       <label className="unassigned-select-wrap">
         <span className="sr-only">Выбрать тему для «{loop.title}»</span>
