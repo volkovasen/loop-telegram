@@ -77,3 +77,37 @@ test('merging a real meeting with a demo is rejected in either direction',async 
  assert.equal(remaining[0].id,real.id);
  assert.equal(remaining[0].status,'open');
 });
+
+test('undo last merge restores both cards while preserving primary title and date',async t=>{
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'loop-unmerge-'));
+ const previous=process.env.DATA_DIR;process.env.DATA_DIR=dir;
+ t.after(async()=>{
+  if(previous===undefined)delete process.env.DATA_DIR;else process.env.DATA_DIR=previous;
+  await fs.rm(dir,{recursive:true,force:true});
+ });
+ const store=await import(`../server/store.mjs?unmerge_test=${Date.now()}`);
+ const owner='888888';
+ const a={...base('a10',owner,'Арина'),eventDate:'2026-10-17',participants:[{name:'Маша'}]};
+ const b={...base('b11',owner,'Кирилл'),title:'Кирилл уточняет встречу'};
+ const c={...base('c12',owner,'Вера'),title:'Вера прислала время'};
+ await store.addLoop(a);await store.addLoop(b);await store.addLoop(c);
+ await store.mergeLoopPlans(owner,a.id,b.id);
+ await store.mergeLoopPlans(owner,a.id,c.id);
+ await store.updateLoop(a.id,{title:'Субботняя встреча',eventDate:'2026-10-18'},owner);
+ const result=await store.undoLastLoopMerge(owner,a.id);
+ assert.equal(result.primary.title,'Субботняя встреча');
+ assert.equal(result.primary.eventDate,'2026-10-18');
+ assert.deepEqual(result.primary.participants.map(p=>p.name),['Маша','Кирилл']);
+ assert.deepEqual(result.primary.mergedFrom,[b.id]);
+ assert.equal(result.restored.id,c.id);
+ assert.equal(result.restored.status,'open');
+ assert.equal(result.restored.mergedInto,null);
+ assert.equal(result.primary.mergeHistory.length,1);
+ const previousMerge=await store.undoLastLoopMerge(owner,a.id);
+ assert.deepEqual(previousMerge.primary.participants.map(p=>p.name),['Маша']);
+ assert.equal(previousMerge.primary.mergedFrom.length,0);
+ assert.equal(previousMerge.restored.status,'open');
+ assert.equal((await store.readLoops(owner)).filter(x=>x.status==='open').length,3);
+ await assert.rejects(()=>store.undoLastLoopMerge(owner,a.id),/Нет объединения/);
+ await assert.rejects(()=>store.undoLastLoopMerge('999999',a.id),/не найдена/);
+});
