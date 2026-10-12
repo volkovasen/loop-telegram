@@ -104,7 +104,7 @@ function spacesForOwner(records, ownerId) {
   const mine = records.filter(item => item.ownerId === String(ownerId));
   const defaults = DEFAULT_SPACES.map(item => {
     const saved = mine.find(record => record.id === item.id);
-    return { ...item, examples: saved?.examples ?? [] };
+    return { ...item, name: saved?.name ?? item.name, description: saved?.description ?? item.description, examples: saved?.examples ?? [] };
   });
   return [...defaults, ...mine.filter(item => !item.isDefault && !DEFAULT_SPACES.some(def => def.id === item.id))];
 }
@@ -142,11 +142,12 @@ export async function createSpace(ownerId, input) {
 export async function editSpace(ownerId, id, input) {
   return enqueueWrite(async () => {
     const records = await readSpaceRecords();
-    const index = records.findIndex(item => item.id === id && item.ownerId === String(ownerId) && !item.isDefault);
-    if (index < 0) throw new SpaceError('Space не найден или не редактируется.', 404);
+    const index = records.findIndex(item => item.id === id && item.ownerId === String(ownerId));
+    const base = DEFAULT_SPACES.find(item => item.id === id);
+    if (index < 0 && !base) throw new SpaceError('Space не найден или не редактируется.', 404);
     const existing = spacesForOwner(records, ownerId);
     const { name, description } = validateSpaceInput(input, existing, id);
-    const oldName = records[index].name;
+    const oldName = index >= 0 ? records[index].name : base.name;
     if (name !== oldName) {
       const loops = await readAll();
       let changed = false;
@@ -159,9 +160,11 @@ export async function editSpace(ownerId, id, input) {
       }
       if (changed) await writeAll(loops);
     }
-    records[index] = { ...records[index], name, description, updatedAt: new Date().toISOString() };
+    const updated = { ...(index >= 0 ? records[index] : { ...base, ownerId:String(ownerId), examples:[], createdAt:new Date().toISOString() }), name, description, updatedAt:new Date().toISOString() };
+    if (index >= 0) records[index] = updated;
+    else records.push(updated);
     await writeSpaceRecords(records);
-    return records[index];
+    return updated;
   });
 }
 
