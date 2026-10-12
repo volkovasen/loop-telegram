@@ -53,3 +53,27 @@ test('participants, merges and full sources remain private and durable',async t=
  assert.equal((await store.readLoops(v))[0].status,'open');
  await assert.rejects(()=>store.mergeLoopPlans(u,b.id,a.id),/объединена/);
 });
+
+test('merging a real meeting with a demo is rejected in either direction',async (t)=>{
+ const fs=await import('node:fs/promises');
+ const os=await import('node:os');
+ const path=await import('node:path');
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'loop-real-vs-demo-'));
+ const previous=process.env.DATA_DIR;process.env.DATA_DIR=dir;
+ t.after(async()=>{
+  if(previous===undefined)delete process.env.DATA_DIR;else process.env.DATA_DIR=previous;
+  await fs.rm(dir,{recursive:true,force:true});
+ });
+ const store=await import(`../server/store.mjs?demo_merge=${Date.now()}`);
+ const owner='123456789';
+ const [demo] = await store.seedDemoLoops(owner);
+ const real=base('real100',owner,'Настоящая Арина');
+ await store.addLoop(real);
+ await assert.rejects(()=>store.mergeLoopPlans(owner,demo.id,real.id),/Тестовую карточку нельзя объединять/);
+ await assert.rejects(()=>store.mergeLoopPlans(owner,real.id,demo.id),/Тестовую карточку нельзя объединять/);
+ assert.equal(await store.clearDemoLoops(owner),2);
+ const remaining=await store.readLoops(owner);
+ assert.equal(remaining.length,1);
+ assert.equal(remaining[0].id,real.id);
+ assert.equal(remaining[0].status,'open');
+});
