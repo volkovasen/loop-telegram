@@ -288,3 +288,41 @@ nav svg{width:21px;height:21px}
 @media(prefers-reduced-motion:reduce){
  .loop-task-card,.spaces button{transition:none}
 }
+
+/* Small folder control, circular overflow cue, and global confirmation. */
+.spaces-bar .space-manage-button{
+ width:42px;height:42px;min-width:42px;min-height:42px;
+ padding:0;align-self:center;margin-bottom:5px;
+ border:0;border-radius:14px;background:#e9eef9;color:#253449;
+ display:grid;place-items:center;
+}
+.space-manage-button svg{width:23px;height:23px}
+.loop-task-dots{
+ display:inline-grid;place-items:center;flex:0 0 35px;
+ width:35px;height:35px;border-radius:50%;
+ background:#f2f4f8;color:#9ba4b6;line-height:1;
+ font-size:22px;letter-spacing:1px;padding-bottom:7px;
+}
+.loop-top-toast{
+ position:fixed;z-index:100;top:calc(12px + env(safe-area-inset-top,0px));
+ left:50%;transform:translateX(-50%);
+ width:min(calc(100% - 30px),520px);min-height:66px;
+ display:flex;align-items:center;gap:12px;
+ padding:13px 14px;background:#edf8ed;color:#356745;
+ border:1px solid #cce6cf;border-radius:21px;
+ box-shadow:0 16px 40px rgba(41,69,42,.13);
+ animation:loop-toast-in .18s ease-out;
+}
+.loop-top-toast-check{
+ flex:0 0 33px;display:grid;place-items:center;
+ width:33px;height:33px;border-radius:50%;
+ background:#d7f2bd;color:#42773a;
+}
+.loop-top-toast strong{flex:1;font-size:14px;line-height:1.3;font-weight:750}
+.loop-top-toast button{
+ display:grid;place-items:center;flex:0 0 36px;
+ width:36px;height:36px;border:0;border-radius:50%;
+ color:#8da893;background:transparent;cursor:pointer;
+}
+@keyframes loop-toast-in{from{opacity:0;transform:translate(-50%,-10px)}to{opacity:1;transform:translate(-50%,0)}}
+@media(prefers-reduced-motion:reduce){.loop-top-toast{animation:none}}
