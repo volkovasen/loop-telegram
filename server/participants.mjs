@@ -37,11 +37,53 @@ export function mergePlanRecords(primary,secondary){
   sourceSet.add(key);
   relatedSources.push(source);
  }
+ const mergeHistory = [
+  ...(primary.mergeHistory??[]),
+  {
+   secondaryId:secondary.id,
+   before:{
+    participants:primary.participants??[],
+    relatedSources:primary.relatedSources??[],
+    mergedFrom:primary.mergedFrom??[]
+   },
+   secondaryBefore:{
+    status:secondary.status,
+    mergedInto:secondary.mergedInto??null
+   },
+   mergedAt:new Date().toISOString()
+  }
+ ].slice(-30);
  return {
   ...primary,
   participants:dedupeParticipants(primary.person,additional),
   relatedSources:relatedSources.slice(0,30),
   mergedFrom:[...new Set([...(primary.mergedFrom??[]),secondary.id,...(secondary.mergedFrom??[])])].slice(0,30),
+  mergeHistory,
   updatedAt:new Date().toISOString()
+ };
+}
+
+/** Undo only the most recent merge. Older merges remain linked. */
+export function unmergePlanRecords(primary, secondary) {
+ const last=primary?.mergeHistory?.at(-1);
+ if (!last || !secondary || last.secondaryId!==secondary.id) throw new Error('Объединение не найдено.');
+ if (primary.ownerId!==secondary.ownerId) throw new Error('Нельзя разделять чужие договорённости.');
+ if (primary.mergedInto || secondary.mergedInto!==primary.id) throw new Error('Договорённость уже разделена или объединена в другую.');
+ const updatedAt=new Date().toISOString();
+ return {
+  primary:{
+   ...primary,
+   participants:last.before.participants??[],
+   relatedSources:last.before.relatedSources??[],
+   mergedFrom:last.before.mergedFrom??[],
+   mergeHistory:primary.mergeHistory.slice(0,-1),
+   updatedAt
+  },
+  secondary:{
+   ...secondary,
+   status:last.secondaryBefore.status??'open',
+   mergedInto:last.secondaryBefore.mergedInto??null,
+   updatedAt
+  }
  };
 }
