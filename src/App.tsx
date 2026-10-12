@@ -3,7 +3,7 @@ import { ArrowUpRight, Brain, Briefcase, CalendarPlus, Check, ChevronRight, Cloc
 import type { LoopSpace, OpenLoop, SpaceDefinition } from './types/open-loop';
 import { SpacesSheet, UnassignedCard } from './spaces-ui';
 import { MeaningEditor } from './meaning-editor';
-import { ScheduleEditor, commitmentBadge, timeLabel } from './schedule-ui';
+import { ScheduleEditor, commitmentBadge } from './schedule-ui';
 import { ParticipantsEditor } from './participants-ui';
 import { LoopCard } from './loop-card';
 
