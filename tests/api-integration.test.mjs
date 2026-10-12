@@ -120,3 +120,55 @@ test('HTTP server performs real CRUD, deadlines and safe meeting merges', {timeo
  assert.ok(after.json.some(x=>x.id===meeting.id));
  assert.ok(after.json.some(x=>x.id===task.id));
 });
+
+test('production API denies unauthenticated access to real user records', {timeout:25000},async t=>{
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'loop-prod-api-'));
+ const owner='123456789', [meeting]=makeDemoLoops(owner,{now:new Date('2026-10-12T03:46:00+05:00')});
+ const filepath=path.join(dir,'loops.json');
+ await fs.writeFile(filepath,JSON.stringify([meeting]),'utf8');
+ const port=await findPort();
+ const base='http://127.0.0.1:'+port;
+ const child=spawn(process.execPath,['server/api.mjs'],{
+  cwd:root,
+  env:{...process.env,PORT:String(port),NODE_ENV:'production',DATA_DIR:dir,
+   BOT_TOKEN:'test-only-token',TELEGRAM_BOT_TOKEN:'',RAILWAY_PROJECT_ID:'',RAILWAY_VOLUME_MOUNT_PATH:''
+  },
+  stdio:['ignore','pipe','pipe']
+ });
+ let stderr='';
+ child.stderr.on('data',data=>{stderr+=String(data).slice(0,1000)});
+ t.after(async()=>{
+  if(child.exitCode===null){
+   child.kill('SIGTERM');
+   await Promise.race([
+    new Promise(resolve=>child.once('exit',resolve)),
+    new Promise(resolve=>setTimeout(resolve,3000))
+   ]);
+  }
+  if(child.exitCode===null)child.kill('SIGKILL');
+  await fs.rm(dir,{recursive:true,force:true});
+ });
+ let ready=false;
+ for(let n=0;n<70;n++){
+  if(child.exitCode!==null)throw new Error('API exited: '+stderr);
+  try{
+   const health=await fetch(base+'/health');
+   if(health.ok){ready=true;break;}
+  }catch{/* API starting */}
+  await new Promise(resolve=>setTimeout(resolve,100));
+ }
+ assert.equal(ready,true,'production health check: '+stderr);
+ const privateGet=await fetch(base+'/loops');
+ assert.equal(privateGet.status,401);
+ const spacesGet=await fetch(base+'/spaces');
+ assert.equal(spacesGet.status,401);
+ const unauthorizedChange=await fetch(base+'/loops/'+meeting.id+'/correct',{
+  method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({choice:'saved',title:'Not allowed'})
+ });
+ assert.equal(unauthorizedChange.status,401);
+ const stored=JSON.parse(await fs.readFile(filepath,'utf8'));
+ assert.equal(stored.length,1);
+ assert.equal(stored[0].id,meeting.id);
+ assert.equal(stored[0].kind,'plan');
+});
