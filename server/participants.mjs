@@ -21,6 +21,8 @@ function sourceKey(source) {
 export function mergePlanRecords(primary,secondary){
  if(!primary||!secondary||primary.id===secondary.id)throw new Error('Выбери две разные карточки.');
  if(primary.ownerId!==secondary.ownerId)throw new Error('Нельзя объединять чужие карточки.');
+ // Otherwise /demo clear could delete the primary and leave a real meeting archived.
+ if(Boolean(primary.seedTag)!==Boolean(secondary.seedTag))throw new Error('Тестовую карточку нельзя объединять с настоящей договорённостью.');
  if(primary.mergedInto||secondary.mergedInto)throw new Error('Карточка уже объединена с другой.');
  if(['dismissed','done'].includes(primary.status)||['dismissed','done'].includes(secondary.status))throw new Error('Завершённые карточки нельзя объединить.');
  const isPlan=loop=>loop.kind==='plan'||loop.type==='event';
