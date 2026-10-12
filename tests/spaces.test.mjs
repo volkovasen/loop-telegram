@@ -69,4 +69,22 @@ test('Spaces are private, editable and preserve tasks across rename/delete', asy
   assert.equal(after.title, loop.title);
   assert.equal(after.source.text, loop.source.text);
   assert.equal((await store.readSpaces(userA)).length, 3);
+
+  // Built-in Space rules can be personalized, but built-ins cannot be deleted.
+  const homeLoop={...loop,id:'loop-home-1',source:{...loop.source,messageId:43},space:'Дом'};
+  await store.addLoop(homeLoop);
+  const customHome=await store.editSpace(userA,'default-home',{
+    name:'Семья',description:'Домашние дела, покупки и семейные встречи.'
+  });
+  assert.equal(customHome.isDefault,true);
+  assert.equal(customHome.name,'Семья');
+  const mine=await store.readSpaces(userA);
+  assert.equal(mine.find(x=>x.id==='default-home').name,'Семья');
+  assert.equal(mine.find(x=>x.id==='default-home').description,'Домашние дела, покупки и семейные встречи.');
+  assert.equal((await store.readSpaces(userB)).find(x=>x.id==='default-home').name,'Дом');
+  assert.equal((await store.readLoops(userA)).find(x=>x.id===homeLoop.id).space,'Семья');
+  await assert.rejects(()=>store.deleteSpace(userA,'default-home'),/не найден|не удаляется/i);
+  await assert.rejects(()=>store.editSpace(userB,'default-home',{
+    name:'Работа',description:'Повторение имени другой темы запрещено.'
+  }),/существует/i);
 });
