@@ -26,11 +26,19 @@ function loopLabel(loop:OpenLoop){
 }
 function actionHint(loop:OpenLoop){return loop.nextActionText??(loop.type==='reply'?'Ответить на сообщение':loop.type==='waiting'?'Дождаться обещанного':loop.type==='todo'?'Выполнить просьбу':null);}
 
-// Only local Vite preview uses these cards. They are never written to the API.
+// Local-only visual fixtures. They are never sent to the server or Telegram.
 const demoLoops: OpenLoop[] = [
- {id:'demo-reply',type:'reply',status:'open',title:'Сдать доклад по окружающему миру',person:{name:'Арина'},space:'Личное',confidence:1,dueAt:new Date(Date.now()+86400000).toISOString(),source:{messageId:-1,receivedAt:new Date().toISOString(),text:'Слушай, пожалуйста, не забудь отправить мне доклад по окружающему миру. Он нужен до завтра, и ещё уточни, какие картинки ты хочешь добавить. Если будет время, напиши вечером, вместе посмотрим финальную версию.'},createdAt:new Date().toISOString()},
- {id:'demo-todo',type:'todo',status:'open',title:'Купить продукты к ужину',person:{name:'Маша'},space:'Дом',confidence:1,dueAt:new Date(Date.now()+172800000).toISOString(),source:{messageId:-2,receivedAt:new Date().toISOString(),text:'Возьми, пожалуйста, помидоры, сыр, молоко и хлеб. Спасибо!'},createdAt:new Date().toISOString()},
- {id:'demo-waiting',type:'waiting',status:'open',title:'Дождаться ответа по встрече',person:{name:'Никита'},space:'Работа',confidence:1,source:{messageId:-3,receivedAt:new Date().toISOString(),text:'Я уточню у ребят по времени и обязательно вернусь с ответом, когда все подтвердят, что смогут прийти.'},createdAt:new Date().toISOString()}
+ {id:'demo-documents',type:'todo',kind:'request',nextAction:'do',status:'open',
+  title:'Отправить документы',person:{name:'Саша'},space:'Работа',confidence:1,
+  deadlineDate:new Date(Date.now()-86400000).toLocaleDateString('en-CA'),
+  source:{messageId:-1,receivedAt:new Date().toISOString(),text:'[ТЕСТ] Скинь мне документы до завтра, пожалуйста. Нужен договор и паспортные данные.'},createdAt:new Date().toISOString()},
+ {id:'demo-meeting',type:'reply',kind:'plan',agreementStatus:'proposed',nextAction:'coordinate',status:'open',
+  title:'Встреча в субботу',person:{name:'Арина'},participants:[{name:'Кирилл'}],
+  whenText:'В субботу',space:'Личное',confidence:1,
+  source:{messageId:-2,receivedAt:new Date().toISOString(),text:'[ТЕСТ] Давайте в субботу встретимся в кофейне? Напишите, кто сможет и когда удобно.'},createdAt:new Date().toISOString()},
+ {id:'demo-groceries',type:'todo',kind:'request',nextAction:'do',status:'open',
+  title:'Купить продукты к ужину',person:{name:'Маша'},space:'Дом',confidence:1,
+  source:{messageId:-3,receivedAt:new Date().toISOString(),text:'[ТЕСТ] Возьми, пожалуйста, помидоры, сыр, молоко и хлеб. Спасибо!'},createdAt:new Date().toISOString()}
 ];
 
 function attentionText(count:number){if(count===1)return'1 вещь требует внимания';if(count>=2&&count<=4)return`${count} вещи требуют внимания`;return`${count} вещей требуют внимания`}
@@ -39,6 +47,7 @@ function telegramLink(loop:OpenLoop){const username=loop.person?.username?.repla
 function googleCalendarLink(loop:OpenLoop){if(loop.agreementStatus==='proposed'||loop.agreementStatus==='unknown')return;const when=loop.eventAt||loop.deadlineAt||loop.dueAt;if(!when)return;const start=new Date(when);if(Number.isNaN(start.getTime()))return;const end=new Date(start.getTime()+30*60*1000);const stamp=(d:Date)=>d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z');const params=new URLSearchParams({action:'TEMPLATE',text:loop.title,dates:`${stamp(start)}/${stamp(end)}`,details:loop.source.text?`Из Telegram: ${loop.source.text}`:'Добавлено из LOOP'});return`https://calendar.google.com/calendar/render?${params.toString()}`}
 
 export function App(){
+ const demoMode=import.meta.env.DEV&&new URLSearchParams(window.location.search).has('demo');
  const[loops,setLoops]=useState<OpenLoop[]>([]),[spaceDefinitions,setSpaceDefinitions]=useState<SpaceDefinition[]>([]),[spaceSheet,setSpaceSheet]=useState(false),[actionError,setActionError]=useState(''),[connected,setConnected]=useState(false),[hasLoaded,setHasLoaded]=useState(false),[tab,setTab]=useState<Tab>('today'),[space,setSpace]=useState<SpaceFilter>('Все'),[selected,setSelected]=useState<OpenLoop|null>(null),[personName,setPersonName]=useState<string|null>(null),[memoryQuery,setMemoryQuery]=useState(''),[memoryResults,setMemoryResults]=useState<OpenLoop[]|null>(null),[memorySearching,setMemorySearching]=useState(false);
  async function loadLoops(){try{const res=await fetch(`${API_URL}/loops`,{headers:authHeaders()});if(!res.ok)throw new Error();setLoops(await res.json());setConnected(true)}catch{setConnected(false)}finally{setHasLoaded(true)}}
  async function loadSpaces(){try{const res=await fetch(`${API_URL}/spaces`,{headers:authHeaders()});if(!res.ok)throw new Error();setSpaceDefinitions(await res.json())}catch{setActionError('Не удалось загрузить Spaces. Проверь соединение.')}}
@@ -64,9 +73,23 @@ export function App(){
    return null;
   }catch{return 'Соединение потеряно. Попробуй ещё раз.'}
  }
- useEffect(()=>{telegram?.ready?.();telegram?.expand?.();loadLoops();loadSpaces();const timer=setInterval(loadLoops,2000);return()=>clearInterval(timer)},[]);
+ useEffect(()=>{
+  telegram?.ready?.();telegram?.expand?.();
+  if(demoMode){
+   setHasLoaded(true);setConnected(true);
+   setSpaceDefinitions([
+    {id:'demo-work',name:'Работа',description:'Рабочие задачи',isDefault:true},
+    {id:'demo-personal',name:'Личное',description:'Личные планы',isDefault:true},
+    {id:'demo-home',name:'Дом',description:'Домашние дела',isDefault:true}
+   ]);
+   return;
+  }
+  loadLoops();loadSpaces();
+  const timer=setInterval(loadLoops,2000);
+  return()=>clearInterval(timer);
+ },[demoMode]);
  useEffect(()=>{const q=memoryQuery.trim();if(!q){setMemoryResults(null);setMemorySearching(false);return}const controller=new AbortController();const timer=setTimeout(async()=>{setMemorySearching(true);try{const res=await fetch(`${API_URL}/memory/search?q=${encodeURIComponent(q)}`,{signal:controller.signal,headers:authHeaders()});if(res.ok)setMemoryResults(await res.json())}catch(error){if((error as Error).name!=='AbortError')setMemoryResults([])}finally{if(!controller.signal.aborted)setMemorySearching(false)}},300);return()=>{clearTimeout(timer);controller.abort()}},[memoryQuery]);
- const demoMode=import.meta.env.DEV&&new URLSearchParams(window.location.search).has('demo');
+
  const attention=useMemo(()=>{const now=Date.now();return loops.filter(l=>l.type!=='saved'&&((l.status==='open'||l.status==='suggested')||(l.status==='snoozed'&&(l.snoozedUntil||l.dueAt)&&new Date(l.snoozedUntil||l.dueAt||'').getTime()<=now)))},[loops]);
  const visibleAttention=useMemo(()=>(demoMode?demoLoops:attention).filter(l=>space==='Все'||l.space===space),[attention,space,demoMode]);
  const history=useMemo(()=>loops.filter(l=>l.status==='done').sort((a,b)=>(b.completedAt??'').localeCompare(a.completedAt??'')),[loops]);
