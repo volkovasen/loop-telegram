@@ -10,6 +10,11 @@ function localCalendarDay(instant, timeZone) {
 
 export const DEMO_TAGS = ['loop-demo-meeting-v1','loop-demo-deadline-v1'];
 
+export const DEMO_SOURCE_TEXTS = [
+ '[ТЕСТОВОЕ СООБЩЕНИЕ] Давай в субботу встретимся втроём с Кириллом, посмотрим фильм. Время пока не согласовали.',
+ '[ТЕСТОВОЕ СООБЩЕНИЕ] Пришли документы. Срок уже прошёл, проверь отметку «Просрочено».'
+];
+
 export function makeDemoLoops(ownerId,{now=new Date(),timeZone='UTC'}={}) {
  if(!/^\d{4,20}$/.test(String(ownerId)))throw new Error('A Telegram owner ID is required');
  const timestamp=new Date(now);
@@ -42,7 +47,7 @@ export function makeDemoLoops(ownerId,{now=new Date(),timeZone='UTC'}={}) {
     messageId:-91000001,
     receivedAt,
     authorName:'Тестовая Арина',
-    text:'[ТЕСТОВОЕ СООБЩЕНИЕ] Давай в субботу встретимся втроём с Кириллом, посмотрим фильм. Время пока не согласовали.'
+    text:DEMO_SOURCE_TEXTS[0]
    }
   },
   {
@@ -63,7 +68,7 @@ export function makeDemoLoops(ownerId,{now=new Date(),timeZone='UTC'}={}) {
     messageId:-91000002,
     receivedAt,
     authorName:'Тестовая Саша',
-    text:'[ТЕСТОВОЕ СООБЩЕНИЕ] Пришли документы. Срок уже прошёл, проверь отметку «Просрочено».'
+    text:DEMO_SOURCE_TEXTS[1]
    }
   }
  ];
