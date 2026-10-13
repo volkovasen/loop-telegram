@@ -37,7 +37,7 @@ export function LoopCard({ loop, onOpen }: { loop:OpenLoop; onOpen:()=>void }) {
      </span>
      {loop.space&&<span className="loop-task-pill loop-task-pill--space">{loop.space}</span>}
     </div>
-    <span className="loop-task-dots" aria-hidden="true">···</span>
+    <span className="loop-task-dots" aria-hidden="true"><i/><i/><i/></span>
    </div>
    <h2>{loop.title}</h2>
    <div className="loop-task-context">
