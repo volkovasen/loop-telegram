@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, Brain, Briefcase, CalendarPlus, Check, ChevronRight, Clock3, FolderPlus, House, MessageSquareText, Search, ShieldCheck, UserRound, Users, X } from 'lucide-react';
+import { ArrowUpRight, Brain, CalendarPlus, Check, ChevronRight, Clock3, MessageSquareText, Plus, Search, ShieldCheck, Users, X } from 'lucide-react';
 import type { LoopSpace, OpenLoop, SpaceDefinition } from './types/open-loop';
 import { SpacesSheet, UnassignedCard } from './spaces-ui';
 import { MeaningEditor } from './meaning-editor';
@@ -202,7 +202,7 @@ export function App(){
  const title=tab==='today'?'Сегодня':tab==='people'?'Люди':'Память';
  return <main className="shell">{topNotice&&<div className="loop-top-toast" role="status" aria-live="polite"><span className="loop-top-toast-check"><Check size={19}/></span><strong>{topNotice}</strong><button type="button" aria-label="Закрыть уведомление" onClick={()=>setTopNotice('')}><X size={19}/></button></div>}<header><div className="eyebrow">LOOP</div><h1>{title}</h1><p>{tab==='today'&&demoMode?'Демо · карточки для просмотра на телефоне':!hasLoaded?'Загружаем сообщения…':!connected?'LOOP не подключён':firstRun?'Твои важные сообщения будут здесь':tab==='today'?(attention.length?attentionText(attention.length):'Хвостов нет. Красиво.'):tab==='people'?`${people.length} человек в контексте`:`${allMemory.length} сохранено`}</p></header>
  {actionError&&<div className="action-error" role="alert">{actionError}<button type="button" onClick={()=>setActionError('')} aria-label="Скрыть ошибку"><X size={15}/></button></div>}
- {tab==='today'&&(hasLoaded&&!connected&&!loops.length&&!demoMode?<div className="empty"><strong>Не удалось загрузить сообщения</strong><span>Проверь соединение и открой LOOP через Telegram.</span></div>:<TodayView loops={visibleAttention} history={history} snoozed={snoozed} dismissed={dismissed} space={space} spaces={spaceDefinitions} firstRun={firstRun} onSpace={setSpace} onManage={()=>setSpaceSheet(true)} onSelect={setSelected} onAssign={assignSpace}/>)} 
+ {tab==='today'&&(hasLoaded&&!connected&&!loops.length&&!demoMode?<div className="empty"><strong>Не удалось загрузить сообщения</strong><span>Проверь соединение и открой LOOP через Telegram.</span></div>:<TodayView loops={visibleAttention} allLoops={demoMode?demoLoops:attention} history={history} snoozed={snoozed} dismissed={dismissed} space={space} spaces={spaceDefinitions} firstRun={firstRun} onSpace={setSpace} onManage={()=>setSpaceSheet(true)} onSelect={setSelected} onAssign={assignSpace}/>)} 
  {tab==='people'&&<PeopleView people={people} selectedName={personName} onSelectName={setPersonName} onSelectLoop={setSelected}/>} 
  {tab==='memory'&&<MemoryView query={memoryQuery} onQuery={setMemoryQuery} loops={memory} searching={memorySearching} onSelect={setSelected}/>} 
  <nav><button className={tab==='today'?'active':''} onClick={()=>setTab('today')}><Clock3/>Сегодня</button><button className={tab==='people'?'active':''} onClick={()=>setTab('people')}><Users/>Люди</button><button className={tab==='memory'?'active':''} onClick={()=>setTab('memory')}><Brain/>Память</button></nav>
@@ -224,17 +224,28 @@ function FirstRunEmpty(){
   <div className="first-run-privacy"><ShieldCheck size={17}/><span>LOOP видит только то, что ты ему пересылаешь.</span></div>
  </section>
 }
-function TodayView({loops,history,snoozed,dismissed,space,spaces,firstRun,onSpace,onManage,onSelect,onAssign}:{loops:OpenLoop[];history:OpenLoop[];snoozed:OpenLoop[];dismissed:OpenLoop[];space:SpaceFilter;spaces:SpaceDefinition[];firstRun:boolean;onSpace:(s:SpaceFilter)=>void;onManage:()=>void;onSelect:(l:OpenLoop)=>void;onAssign:(l:OpenLoop,name:string)=>void}){
+function TodayView({loops,allLoops,history,snoozed,dismissed,space,spaces,firstRun,onSpace,onManage,onSelect,onAssign}:{loops:OpenLoop[];allLoops:OpenLoop[];history:OpenLoop[];snoozed:OpenLoop[];dismissed:OpenLoop[];space:SpaceFilter;spaces:SpaceDefinition[];firstRun:boolean;onSpace:(s:SpaceFilter)=>void;onManage:()=>void;onSelect:(l:OpenLoop)=>void;onAssign:(l:OpenLoop,name:string)=>void}){
  const unassigned=space==='Все'?loops.filter(loop=>!loop.space):[];
  const assigned=loops.filter(loop=>Boolean(loop.space)).sort((a,b)=>{
   const rank=(loop:OpenLoop)=>commitmentBadge(loop)==='Просрочено'||commitmentBadge(loop)==='Обещание задерживается'?0:commitmentBadge(loop)==='Событие прошло'?2:1;
   return rank(a)-rank(b);
  });
- const filterNames=['Все',...spaces.map(item=>item.name)];
+ const defaultOrder=new Map([['Дом',0],['Личное',1],['Работа',2]]);
+ const orderedSpaces=[...spaces].sort((a,b)=>(defaultOrder.get(a.name)??10)-(defaultOrder.get(b.name)??10)||a.name.localeCompare(b.name,'ru'));
+ const spaceCounts=new Map(orderedSpaces.map(item=>[item.name,allLoops.filter(loop=>loop.space===item.name).length]));
  return <>
-  <div className="spaces-bar">
-   <div className="spaces">{filterNames.map(item=><button type="button" key={item} className={space===item?'selected':''} onClick={()=>onSpace(item)}>{item==='Дом'&&<House size={14}/>} {item==='Работа'&&<Briefcase size={14}/>} {item==='Личное'&&<UserRound size={14}/>} {item}</button>)}</div>
-   <button type="button" className="space-manage-button" onClick={onManage} aria-label="Управление темами" title="Управление темами"><FolderPlus size={23}/></button>
+  <div className="spaces-bar" role="tablist" aria-label="Spaces">
+   <button type="button" className="space-manage-button" onClick={onManage} aria-label="Добавить или изменить Space" title="Добавить Space"><Plus size={21} strokeWidth={2}/></button>
+   <div className="spaces">
+    {orderedSpaces.map(item=>{
+     const count=spaceCounts.get(item.name)??0;
+     const selected=space===item.name;
+     return <button type="button" role="tab" aria-selected={selected} key={item.id} className={selected?'selected':''} onClick={()=>onSpace(selected?'Все':item.name)}>
+      <span className="space-tab-label">{item.name}</span>
+      {count>0&&<span className="space-count" aria-label={`${count} активных задач`}>{count}</span>}
+     </button>;
+    })}
+   </div>
   </div>
   {firstRun?<FirstRunEmpty/>:<>
    {unassigned.length>0&&<section className="unassigned-section">
