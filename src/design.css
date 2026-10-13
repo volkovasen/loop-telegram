@@ -326,3 +326,55 @@ nav svg{width:21px;height:21px}
 }
 @keyframes loop-toast-in{from{opacity:0;transform:translate(-50%,-10px)}to{opacity:1;transform:translate(-50%,0)}}
 @media(prefers-reduced-motion:reduce){.loop-top-toast{animation:none}}
+
+
+/* Spaces concept 2026-10-13: iPhone-style compact folder rail. */
+.spaces-bar{
+  display:flex;align-items:center;gap:8px;margin:0 0 14px;padding:6px 7px;
+  border:1.5px solid #d7d9de;border-radius:999px;background:rgba(255,255,255,.76);
+  box-shadow:none;overflow:hidden;backdrop-filter:blur(14px);
+}
+.spaces-bar .spaces{
+  flex:1;min-width:0;display:flex;align-items:center;gap:4px;overflow-x:auto;
+  min-height:40px;padding:0 1px;border:0;scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+}
+.spaces-bar .spaces::-webkit-scrollbar{display:none}
+.spaces button{
+  position:relative;flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;
+  min-height:38px;padding:0 13px;border:0;border-radius:999px;background:transparent;
+  color:#111318;font-size:15px;font-weight:650;line-height:1;letter-spacing:-.015em;
+  white-space:nowrap;transition:background .16s ease,transform .16s ease;
+}
+.spaces button:active{transform:scale(.97)}
+.spaces button.selected{background:#dedfe2;color:#101216}
+.spaces button.selected::after{display:none}
+.space-tab-label{display:block}
+.space-count{
+  display:grid;place-items:center;min-width:27px;height:27px;padding:0 8px;
+  border-radius:999px;background:#dedfe2;color:#16181d;
+  font-size:13px;font-weight:700;line-height:1;
+}
+.spaces button.selected .space-count{background:#c9cacf}
+.space-manage-button{
+  flex:0 0 40px;width:40px;height:40px;min-width:40px;min-height:40px;padding:0;
+  display:grid;place-items:center;align-self:center;border:0;border-radius:50%;
+  background:#e2e3e6;color:#596170;box-shadow:none;
+}
+.space-manage-button svg{width:21px;height:21px}
+@media(max-width:380px){
+  .spaces-bar{gap:6px;padding:5px 6px}
+  .space-manage-button{flex-basis:37px;width:37px;height:37px;min-width:37px;min-height:37px}
+  .spaces button{min-height:36px;padding:0 11px;font-size:14px}
+  .space-count{min-width:25px;height:25px;padding:0 7px;font-size:12px}
+}
+
+/* Overflow affordance: one soft circle containing three true round dots. */
+.loop-task-dots{
+  flex:0 0 34px;width:34px;height:34px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;gap:3px;
+  background:#f1f2f5;color:transparent;letter-spacing:0;font-size:0;line-height:1;
+}
+.loop-task-dots i{
+  display:block;width:4px;height:4px;border-radius:50%;background:#9299a6;
+}
