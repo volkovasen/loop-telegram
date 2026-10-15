@@ -25,6 +25,8 @@ test('Custom Space strip matches supplied light mockup and keeps attention count
  assert.match(html,/class="space-strip" aria-label="Папки LOOP"/);
  assert.match(html,/class="space-strip__manage"/);
  assert.match(html,/aria-label="Создать или изменить тему"/);
+ assert.match(html,/lucide-plus/);
+ assert.ok(!html.includes('lucide-folder-plus'), 'Only the compact plus is shown');
  assert.match(html,/class="space-strip__scroller" role="tablist"/);
  assert.equal((html.match(/role="tab"/g)??[]).length,4,'No extra All tab in the mockup');
  assert.deepEqual([...html.matchAll(/class="space-strip__name">([^<]+)/g)].map(m=>m[1]),[
@@ -36,8 +38,11 @@ test('Custom Space strip matches supplied light mockup and keeps attention count
  assert.ok(!html.includes('telegram-folders'));
  assert.ok(!html.includes('>Все<'));
  const css = await readFile(new URL('../src/design.css',import.meta.url),'utf8');
- assert.match(css,/\.space-strip\{[^}]*border:2px solid #e7edf9/);
- assert.match(css,/\.space-strip__tab--active\{background:#e8edf8\}/);
+ assert.match(css,/\.space-strip\{[^}]*height:42px[^}]*border:1px solid #e5ebf7/);
+ assert.match(css,/\.space-strip__manage\{[^}]*width:32px;height:32px/);
+ assert.match(css,/\.space-strip__tab\{[^}]*height:32px;min-height:32px/);
+ assert.match(css,/\.space-strip__tab--active\{background:#e9edf7\}/);
  assert.match(css,/\.space-strip__name\{text-transform:lowercase/);
- assert.match(css,/\.space-strip__count\{[^}]*background:#e8edf8/);
+ assert.match(css,/\.space-strip__count\{[^}]*min-width:21px;height:21px[^}]*background:#e9edf7/);
+ assert.match(css,/\.space-strip__count\{[^}]*place-items:center/);
 });
