@@ -201,9 +201,9 @@ export function App(){
  async function dismissPlan(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;if(await patchLoop(loop.id,{status:'dismissed'}))setSelected(null)}
  const firstRun=hasLoaded&&connected&&loops.length===0&&!demoMode;
  const title=tab==='today'?'Сегодня':tab==='people'?'Люди':'Память';
- return <main className="shell">{topNotice&&<div className="loop-top-toast" role="status" aria-live="polite"><span className="loop-top-toast-check"><Check size={19}/></span><strong>{topNotice}</strong><button type="button" aria-label="Закрыть уведомление" onClick={()=>setTopNotice('')}><X size={19}/></button></div>}<header><div className="eyebrow">LOOP</div><div className="loop-title-row"><h1>{title}</h1>{tab==='today'&&<button type="button" className="loop-spaces-edit" onClick={()=>setSpaceSheet(true)} aria-label="Изменить папки" title="Добавить или изменить папку">Изм.</button>}</div><p>{tab==='today'&&demoMode?'Демо · карточки для просмотра на телефоне':!hasLoaded?'Загружаем сообщения…':!connected?'LOOP не подключён':firstRun?'Твои важные сообщения будут здесь':tab==='today'?(attention.length?attentionText(attention.length):'Хвостов нет. Красиво.'):tab==='people'?`${people.length} человек в контексте`:`${allMemory.length} сохранено`}</p></header>
+ return <main className="shell">{topNotice&&<div className="loop-top-toast" role="status" aria-live="polite"><span className="loop-top-toast-check"><Check size={19}/></span><strong>{topNotice}</strong><button type="button" aria-label="Закрыть уведомление" onClick={()=>setTopNotice('')}><X size={19}/></button></div>}<header><div className="eyebrow">LOOP</div><h1>{title}</h1><p>{tab==='today'&&demoMode?'Демо · карточки для просмотра на телефоне':!hasLoaded?'Загружаем сообщения…':!connected?'LOOP не подключён':firstRun?'Твои важные сообщения будут здесь':tab==='today'?(attention.length?attentionText(attention.length):'Хвостов нет. Красиво.'):tab==='people'?`${people.length} человек в контексте`:`${allMemory.length} сохранено`}</p></header>
  {actionError&&<div className="action-error" role="alert">{actionError}<button type="button" onClick={()=>setActionError('')} aria-label="Скрыть ошибку"><X size={15}/></button></div>}
- {tab==='today'&&(hasLoaded&&!connected&&!loops.length&&!demoMode?<div className="empty"><strong>Не удалось загрузить сообщения</strong><span>Проверь соединение и открой LOOP через Telegram.</span></div>:<TodayView loops={visibleAttention} allLoops={demoMode?demoLoops:attention} history={history} snoozed={snoozed} dismissed={dismissed} space={space} spaces={spaceDefinitions} firstRun={firstRun} onSpace={setSpace} onSelect={setSelected} onAssign={assignSpace}/>)} 
+ {tab==='today'&&(hasLoaded&&!connected&&!loops.length&&!demoMode?<div className="empty"><strong>Не удалось загрузить сообщения</strong><span>Проверь соединение и открой LOOP через Telegram.</span></div>:<TodayView loops={visibleAttention} allLoops={demoMode?demoLoops:attention} history={history} snoozed={snoozed} dismissed={dismissed} space={space} spaces={spaceDefinitions} firstRun={firstRun} onSpace={setSpace} onManage={()=>setSpaceSheet(true)} onSelect={setSelected} onAssign={assignSpace}/>)} 
  {tab==='people'&&<PeopleView people={people} selectedName={personName} onSelectName={setPersonName} onSelectLoop={setSelected}/>} 
  {tab==='memory'&&<MemoryView query={memoryQuery} onQuery={setMemoryQuery} loops={memory} searching={memorySearching} onSelect={setSelected}/>} 
  <nav><button className={tab==='today'?'active':''} onClick={()=>setTab('today')}><Clock3/>Сегодня</button><button className={tab==='people'?'active':''} onClick={()=>setTab('people')}><Users/>Люди</button><button className={tab==='memory'?'active':''} onClick={()=>setTab('memory')}><Brain/>Память</button></nav>
@@ -225,14 +225,14 @@ function FirstRunEmpty(){
   <div className="first-run-privacy"><ShieldCheck size={17}/><span>LOOP видит только то, что ты ему пересылаешь.</span></div>
  </section>
 }
-function TodayView({loops,allLoops,history,snoozed,dismissed,space,spaces,firstRun,onSpace,onSelect,onAssign}:{loops:OpenLoop[];allLoops:OpenLoop[];history:OpenLoop[];snoozed:OpenLoop[];dismissed:OpenLoop[];space:SpaceFilter;spaces:SpaceDefinition[];firstRun:boolean;onSpace:(s:SpaceFilter)=>void;onSelect:(l:OpenLoop)=>void;onAssign:(l:OpenLoop,name:string)=>void}){
+function TodayView({loops,allLoops,history,snoozed,dismissed,space,spaces,firstRun,onSpace,onManage,onSelect,onAssign}:{loops:OpenLoop[];allLoops:OpenLoop[];history:OpenLoop[];snoozed:OpenLoop[];dismissed:OpenLoop[];space:SpaceFilter;spaces:SpaceDefinition[];firstRun:boolean;onSpace:(s:SpaceFilter)=>void;onManage:()=>void;onSelect:(l:OpenLoop)=>void;onAssign:(l:OpenLoop,name:string)=>void}){
  const unassigned=space==='Все'?loops.filter(loop=>!loop.space):[];
  const assigned=loops.filter(loop=>Boolean(loop.space)).sort((a,b)=>{
   const rank=(loop:OpenLoop)=>commitmentBadge(loop)==='Просрочено'||commitmentBadge(loop)==='Обещание задерживается'?0:commitmentBadge(loop)==='Событие прошло'?2:1;
   return rank(a)-rank(b);
  });
  return <>
-  <SpaceTabs spaces={spaces} active={space} loops={allLoops} onSelect={onSpace}/>
+  <SpaceTabs spaces={spaces} active={space} loops={allLoops} onSelect={onSpace} onManage={onManage}/>
   {firstRun?<FirstRunEmpty/>:<>
    {unassigned.length>0&&<section className="unassigned-section">
     <div className="unassigned-title"><div><span className="unassigned-title-icon">?</span><strong>Нужно распределить</strong></div><small>{unassigned.length}</small></div>
