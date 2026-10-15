@@ -1,4 +1,5 @@
 import { Plus } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { OpenLoop, SpaceDefinition } from './types/open-loop';
 
 /**
@@ -19,13 +20,36 @@ export function SpaceTabs({ spaces, active, loops, onSelect, onManage }: {
  const counts = new Map(ordered.map(item => [
   item.name, loops.filter(loop => loop.space === item.name).length
  ]));
+ const scrollRef = useRef<HTMLDivElement>(null);
+ const [edgeFade, setEdgeFade] = useState<'none'|'left'|'right'|'both'>('none');
+ const updateEdgeFade = useCallback(() => {
+  const element = scrollRef.current;
+  if (!element) return;
+  const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
+  const left = element.scrollLeft > 1;
+  const right = element.scrollLeft < maxScroll - 1;
+  setEdgeFade(left && right ? 'both' : left ? 'left' : right ? 'right' : 'none');
+ }, []);
+ useEffect(() => {
+  const element = scrollRef.current;
+  if (!element) return;
+  updateEdgeFade();
+  window.addEventListener('resize', updateEdgeFade);
+  const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateEdgeFade) : null;
+  observer?.observe(element);
+  return () => {
+   observer?.disconnect();
+   window.removeEventListener('resize', updateEdgeFade);
+  };
+ }, [spaces, updateEdgeFade]);
 
  return <div className="space-strip" aria-label="Папки LOOP">
   <button type="button" className="space-strip__manage" onClick={onManage}
    aria-label="Создать или изменить тему" title="Создать или изменить тему">
    <Plus size={18} strokeWidth={2.1} aria-hidden="true"/>
   </button>
-  <div className="space-strip__scroller" role="tablist" aria-label="Фильтр по темам">
+  <div className="space-strip__scroller" role="tablist" aria-label="Фильтр по темам"
+   ref={scrollRef} onScroll={updateEdgeFade} data-edge-fade={edgeFade}>
    <button type="button" role="tab" aria-selected={active === 'Все'}
     className={`space-strip__tab${active === 'Все' ? ' space-strip__tab--active' : ''}`}
     onClick={() => onSelect('Все')}>
