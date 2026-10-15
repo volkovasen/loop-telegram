@@ -1,4 +1,4 @@
-import { FolderPlus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import type { OpenLoop, SpaceDefinition } from './types/open-loop';
 
 /**
@@ -23,7 +23,7 @@ export function SpaceTabs({ spaces, active, loops, onSelect, onManage }: {
  return <div className="space-strip" aria-label="Папки LOOP">
   <button type="button" className="space-strip__manage" onClick={onManage}
    aria-label="Создать или изменить тему" title="Создать или изменить тему">
-   <FolderPlus size={21} strokeWidth={2.1} aria-hidden="true"/>
+   <Plus size={18} strokeWidth={2.1} aria-hidden="true"/>
   </button>
   <div className="space-strip__scroller" role="tablist" aria-label="Фильтр по темам">
    {ordered.map(item => {
