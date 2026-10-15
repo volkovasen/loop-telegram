@@ -28,6 +28,7 @@ test('Custom Space strip matches supplied light mockup and keeps attention count
  assert.match(html,/lucide-plus/);
  assert.ok(!html.includes('lucide-folder-plus'), 'Only the compact plus is shown');
  assert.match(html,/class="space-strip__scroller" role="tablist"/);
+ assert.match(html,/data-edge-fade="none"/);
  assert.match(html,/role="tab" aria-selected="false" class="space-strip__tab"><span class="space-strip__name">Все<\/span><\/button>/);
  assert.equal((html.match(/role="tab"/g)??[]).length,5,'All plus existing four Spaces');
  assert.deepEqual([...html.matchAll(/class="space-strip__name">([^<]+)/g)].map(m=>m[1]),[
@@ -52,4 +53,8 @@ test('Custom Space strip matches supplied light mockup and keeps attention count
  assert.match(css,/\.space-strip__count\{[^}]*min-width:20px;height:20px[^}]*background:#e9edf7/);
  assert.match(css,/\.space-strip__count\{[^}]*align-items:center;justify-content:center/);
  assert.match(css,/\.space-strip__tab\{[^}]*padding:0 10px/);
+ assert.match(css,/\.space-strip__scroller\[data-edge-fade="right"\]/);
+ assert.match(css,/\.space-strip__scroller\[data-edge-fade="left"\]/);
+ assert.match(css,/\.space-strip__scroller\[data-edge-fade="both"\]/);
+ assert.match(css,/mask-image:linear-gradient/);
 });
