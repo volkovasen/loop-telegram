@@ -28,7 +28,8 @@ test('Custom Space strip matches supplied light mockup and keeps attention count
  assert.match(html,/lucide-plus/);
  assert.ok(!html.includes('lucide-folder-plus'), 'Only the compact plus is shown');
  assert.match(html,/class="space-strip__scroller" role="tablist"/);
- assert.equal((html.match(/role="tab"/g)??[]).length,4,'No extra All tab in the mockup');
+ assert.match(html,/role="tab" aria-selected="false" class="space-strip__tab"><span class="space-strip__name">Все<\/span><\/button>/);
+ assert.equal((html.match(/role="tab"/g)??[]).length,5,'All plus existing four Spaces');
  assert.deepEqual([...html.matchAll(/class="space-strip__name">([^<]+)/g)].map(m=>m[1]),[
   'Дом','Личное','Работа','Путешествия'
  ]);
@@ -36,13 +37,19 @@ test('Custom Space strip matches supplied light mockup and keeps attention count
  assert.match(html,/<span class="space-strip__count" aria-label="2 открытых задач">2<\/span>/);
  assert.match(html,/<span class="space-strip__count" aria-label="1 открытых задач">1<\/span>/);
  assert.ok(!html.includes('telegram-folders'));
- assert.ok(!html.includes('>Все<'));
+ const allSelected=renderToStaticMarkup(createElement(SpaceTabs,{
+  spaces,active:'Все',loops:activeLoops,onSelect:()=>{},onManage:()=>{}
+ }));
+ assert.match(allSelected,/role="tab" aria-selected="true" class="space-strip__tab space-strip__tab--active"><span class="space-strip__name">Все<\/span><\/button>/);
+ assert.ok(!allSelected.includes('Сбросить фильтр «Все»'));
  const css = await readFile(new URL('../src/design.css',import.meta.url),'utf8');
  assert.match(css,/\.space-strip\{[^}]*height:42px[^}]*border:1px solid #e5ebf7/);
  assert.match(css,/\.space-strip__manage\{[^}]*width:32px;height:32px/);
  assert.match(css,/\.space-strip__tab\{[^}]*height:32px;min-height:32px/);
+ assert.match(css,/\.space-strip__scroller\{[^}]*gap:5px/);
  assert.match(css,/\.space-strip__tab--active\{background:#e9edf7\}/);
  assert.match(css,/\.space-strip__name\{text-transform:lowercase/);
- assert.match(css,/\.space-strip__count\{[^}]*min-width:21px;height:21px[^}]*background:#e9edf7/);
- assert.match(css,/\.space-strip__count\{[^}]*place-items:center/);
+ assert.match(css,/\.space-strip__count\{[^}]*min-width:20px;height:20px[^}]*background:#e9edf7/);
+ assert.match(css,/\.space-strip__count\{[^}]*align-items:center;justify-content:center/);
+ assert.match(css,/\.space-strip__tab\{[^}]*padding:0 10px/);
 });
