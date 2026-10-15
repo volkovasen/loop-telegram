@@ -24,6 +24,11 @@ test('Today and unassigned cards never expose full forwarded message before open
  assert.match(assignedHtml,/Просрочено/);
  assert.match(assignedHtml,/aria-label="Открыть задачу/);
  assert.doesNotMatch(assignedHtml,/ЛИЧНЫЙ_ТЕКСТ_ИЗ_ПЕРЕПИСКИ/);
+ const doneHtml=renderToStaticMarkup(createElement(LoopCard,{loop:{...task,status:'done',completedAt:'2026-10-16T10:00:00Z'},onOpen:()=>{}}));
+ assert.match(doneHtml,/Выполнено/);
+ assert.match(doneHtml,/loop-task-pill--done/);
+ assert.doesNotMatch(doneHtml,/Нужно сделать/);
+ assert.doesNotMatch(doneHtml,/ЛИЧНЫЙ_ТЕКСТ_ИЗ_ПЕРЕПИСКИ/);
  const unassignedHtml=renderToStaticMarkup(createElement(UnassignedCard,{
   loop:{...task,space:null},spaces:[{id:'work',name:'Работа',description:'Рабочие дела',isDefault:true}],
   onAssign:()=>{},onOpen:()=>{}
