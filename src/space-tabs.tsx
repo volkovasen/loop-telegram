@@ -41,7 +41,7 @@ export function SpaceTabs({ spaces, active, loops, onSelect, onManage }: {
    observer?.disconnect();
    window.removeEventListener('resize', updateEdgeFade);
   };
- }, [spaces, updateEdgeFade]);
+ }, [spaces, loops, updateEdgeFade]);
 
  return <div className="space-strip" aria-label="Папки LOOP">
   <button type="button" className="space-strip__manage" onClick={onManage}
