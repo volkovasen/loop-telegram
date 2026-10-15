@@ -26,6 +26,11 @@ export function SpaceTabs({ spaces, active, loops, onSelect, onManage }: {
    <Plus size={18} strokeWidth={2.1} aria-hidden="true"/>
   </button>
   <div className="space-strip__scroller" role="tablist" aria-label="Фильтр по темам">
+   <button type="button" role="tab" aria-selected={active === 'Все'}
+    className={`space-strip__tab${active === 'Все' ? ' space-strip__tab--active' : ''}`}
+    onClick={() => onSelect('Все')}>
+    <span className="space-strip__name">Все</span>
+   </button>
    {ordered.map(item => {
     const count = counts.get(item.name) ?? 0;
     const selected = active === item.name;
