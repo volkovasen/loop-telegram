@@ -44,10 +44,11 @@ header p{color:#929aab;font-size:13px;line-height:1.45}
 .loop-list-heading h2{font-size:20px;font-weight:800;letter-spacing:-.04em;margin:0}
 .loop-list-heading span{font-size:12px;color:#9aa4b5;background:#e9edf4;padding:4px 9px;border-radius:999px;font-weight:800}
 
-/* Compact Spaces: Telegram-like 42px rail, with the user's light palette.
-   The 21px count has equal optical spacing on all sides inside a 32px pill. */
+/* Spaces are navigation, not a decorative mockup.
+   Symmetric geometry: 42px rail / 32px tabs / 20px count badges.
+   1px border + 3px inset + 1px tab centering = 5px per side. */
 .space-strip{
- display:flex;align-items:center;gap:4px;
+ display:flex;align-items:center;gap:5px;
  width:100%;min-width:0;height:42px;margin:3px 0 18px;
  padding:3px 4px;border:1px solid #e5ebf7;border-radius:999px;
  background:#fff;overflow:hidden;
@@ -60,34 +61,34 @@ header p{color:#929aab;font-size:13px;line-height:1.45}
 }
 .space-strip__manage svg{display:block;width:18px;height:18px}
 .space-strip__scroller{
- display:flex;flex:1;align-items:center;gap:1px;min-width:0;height:34px;
+ display:flex;flex:1;align-items:center;gap:5px;min-width:0;height:34px;
  padding:0;overflow-x:auto;overflow-y:hidden;
  scrollbar-width:none;-webkit-overflow-scrolling:touch;
  overscroll-behavior-x:contain;touch-action:pan-x;
 }
 .space-strip__scroller::-webkit-scrollbar{display:none}
 .space-strip__tab{
- flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;
- height:32px;min-height:32px;padding:0 7px;border:0;border-radius:999px;
+ flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+ height:32px;min-height:32px;padding:0 10px;border:0;border-radius:999px;
  background:transparent;color:#16191f;font-size:14px;font-weight:500;line-height:1;
  letter-spacing:0;white-space:nowrap;cursor:pointer;
  transition:background .15s ease;
 }
 .space-strip__tab--active{background:#e9edf7}
-.space-strip__name{text-transform:lowercase;line-height:1}
+.space-strip__name{text-transform:lowercase;display:block;line-height:1}
 .space-strip__count{
- display:grid;place-items:center;flex:0 0 auto;
- min-width:21px;height:21px;padding:0 5px;border-radius:999px;
+ box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;
+ flex:0 0 auto;min-width:20px;height:20px;padding:0 5px;border-radius:999px;
  background:#e9edf7;color:#222933;font-size:12px;font-weight:600;
  line-height:1;font-variant-numeric:tabular-nums;text-align:center;
 }
 .space-strip__tab--active .space-strip__count{background:#dce3f1}
 .space-strip__manage:active,.space-strip__tab:active{background:#d9e2f4}
 @media(max-width:380px){
- .space-strip{height:40px;margin-bottom:16px;padding:3px 4px;gap:3px}
+ .space-strip{height:40px;margin-bottom:16px;padding:3px 4px;gap:4px}
  .space-strip__manage{flex-basis:30px;width:30px;height:30px;min-width:30px;min-height:30px}
- .space-strip__scroller{height:32px;gap:0}
- .space-strip__tab{height:30px;min-height:30px;padding:0 6px;font-size:13px;gap:5px}
+ .space-strip__scroller{height:32px;gap:5px}
+ .space-strip__tab{height:30px;min-height:30px;padding:0 9px;font-size:13px;gap:6px}
  .space-strip__count{min-width:20px;height:20px;padding:0 5px;font-size:12px}
 }
 @media(prefers-reduced-motion:reduce){.space-strip__tab{transition:none}}
