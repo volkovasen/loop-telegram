@@ -19,7 +19,8 @@ function uniquePeople(loop: OpenLoop): string[] {
 
 export function LoopCard({ loop, onOpen }: { loop:OpenLoop; onOpen:()=>void }) {
  const badge = commitmentBadge(loop);
- const kind = loop.kind==='plan'
+ const isDone = loop.status === 'done';
+ const kind = isDone ? 'Выполнено' : loop.kind==='plan'
   ? loop.agreementStatus==='confirmed' ? 'Встреча согласована' : 'Нужно договориться'
   : loop.type==='waiting' ? 'Ждём ответа'
   : loop.type==='reply' ? 'Нужно ответить'
@@ -32,7 +33,7 @@ export function LoopCard({ loop, onOpen }: { loop:OpenLoop; onOpen:()=>void }) {
   <button type="button" className="loop-task-open" onClick={onOpen} aria-label={`Открыть задачу «${loop.title}» и прочитать сообщение`}>
    <div className="loop-task-top">
     <div className="loop-task-tags">
-     <span className={`loop-task-pill ${badge ? 'loop-task-pill--late' : 'loop-task-pill--type'}`}>
+     <span className={`loop-task-pill ${isDone ? 'loop-task-pill--done' : badge ? 'loop-task-pill--late' : 'loop-task-pill--type'}`}>
       {badge ?? kind}
      </span>
      {loop.space&&<span className="loop-task-pill loop-task-pill--space">{loop.space}</span>}
@@ -54,7 +55,7 @@ export function LoopCard({ loop, onOpen }: { loop:OpenLoop; onOpen:()=>void }) {
     {!people.length&&!when&&<span className="loop-task-when">Из Telegram</span>}
    </div>
    <span className="loop-task-cta">
-    <span>{isMeeting ? 'Посмотреть детали' : 'Открыть задачу'}</span>
+    <span>{isDone || isMeeting ? 'Посмотреть детали' : 'Открыть задачу'}</span>
     <span className="loop-task-arrow"><ArrowUpRight size={23} strokeWidth={1.9}/></span>
    </span>
   </button>
