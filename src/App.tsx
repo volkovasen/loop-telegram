@@ -48,7 +48,7 @@ const demoLoops: OpenLoop[] = [
   source:{messageId:-4,receivedAt:new Date().toISOString(),text:'[ТЕСТ] Забери, пожалуйста, посылку из пункта выдачи.'},createdAt:new Date().toISOString()}
 ];
 
-function attentionText(count:number){if(count===1)return'1 вещь требует внимания';if(count>=2&&count<=4)return`${count} вещи требуют внимания`;return`${count} вещей требуют внимания`}
+function attentionText(count:number){if(count===1)return'1 задача из чатов';if(count>=2&&count<=4)return`${count} задачи из чатов`;return`${count} задач из чатов`}
 function formatDate(value?:string|null){if(!value)return;const date=new Date(value);if(Number.isNaN(date.getTime()))return;return new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(date)}
 function telegramLink(loop:OpenLoop){const username=loop.person?.username?.replace(/^@/,'');if(username)return`https://t.me/${username}`;if(loop.person?.telegramUserId)return`tg://user?id=${loop.person.telegramUserId}`}
 function googleCalendarLink(loop:OpenLoop){if(loop.agreementStatus==='proposed'||loop.agreementStatus==='unknown')return;const when=loop.eventAt||loop.deadlineAt||loop.dueAt;if(!when)return;const start=new Date(when);if(Number.isNaN(start.getTime()))return;const end=new Date(start.getTime()+30*60*1000);const stamp=(d:Date)=>d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z');const params=new URLSearchParams({action:'TEMPLATE',text:loop.title,dates:`${stamp(start)}/${stamp(end)}`,details:loop.source.text?`Из Telegram: ${loop.source.text}`:'Добавлено из LOOP'});return`https://calendar.google.com/calendar/render?${params.toString()}`}
@@ -211,9 +211,9 @@ export function App(){
  async function dismissPlan(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;if(await patchLoop(loop.id,{status:'dismissed'}))setSelected(null)}
  const firstRun=hasLoaded&&connected&&loops.length===0&&!demoMode;
  const title=tab==='today'?'Сегодня':tab==='people'?'Люди':'Память';
- const todayHint=todayStatus==='overdue'? `Просроченных задач: ${statusAttention.length}`
-  :todayStatus==='done'? `Выполнено задач: ${statusAttention.length}`
-  :attentionSource.length?attentionText(attentionSource.length):'Хвостов нет. Красиво.';
+ const todayHint=todayStatus==='overdue'? `Просрочено: ${statusAttention.length}`
+  :todayStatus==='done'? `Выполнено: ${statusAttention.length}`
+  :attentionSource.length?attentionText(attentionSource.length):'Нет активных задач';
  return <main className="shell">{topNotice&&<div className="loop-top-toast" role="status" aria-live="polite"><span className="loop-top-toast-check"><Check size={19}/></span><strong>{topNotice}</strong><button type="button" aria-label="Закрыть уведомление" onClick={()=>setTopNotice('')}><X size={19}/></button></div>}<header className={tab==='today'?'today-header':undefined}>{tab==='today'?<div className="today-heading"><div className="today-heading-copy"><h1>Сегодня</h1><p>{demoMode?'Демо · задачи из Telegram':!hasLoaded?'Загружаем сообщения…':!connected?'LOOP не подключён':firstRun?'Перешли первое сообщение боту':todayHint}</p></div><TodayFilterSelect value={todayStatus} onChange={setTodayStatus}/></div>:<><div className="eyebrow">LOOP</div><h1>{title}</h1><p>{tab==='people'?`${people.length} человек в контексте`:`${allMemory.length} сохранено`}</p></>}</header>
  {actionError&&<div className="action-error" role="alert">{actionError}<button type="button" onClick={()=>setActionError('')} aria-label="Скрыть ошибку"><X size={15}/></button></div>}
  {tab==='today'&&(hasLoaded&&!connected&&!loops.length&&!demoMode?<div className="empty"><strong>Не удалось загрузить сообщения</strong><span>Проверь соединение и открой LOOP через Telegram.</span></div>:<TodayView loops={visibleAttention} allLoops={attentionSource} snoozed={snoozed} dismissed={dismissed} space={space} spaces={spaceDefinitions} firstRun={firstRun} onSpace={setSpace} onManage={()=>setSpaceSheet(true)} onSelect={setSelected} onAssign={assignSpace} statusFilter={todayStatus} />)} 
