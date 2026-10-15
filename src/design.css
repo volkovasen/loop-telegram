@@ -107,34 +107,53 @@ header p{color:#929aab;font-size:13px;line-height:1.45}
 }
 @media(prefers-reduced-motion:reduce){.space-strip__tab{transition:none}}
 
-/* Today heading and real status selector, based on the user's Figma layout. */
-.today-heading{
- display:flex;align-items:center;justify-content:space-between;gap:12px;
- min-width:0;
+/* Compact editorial heading: one title, one muted hint and a 38px status pill.
+   Match the width and horizontal rhythm of the Space rail below. */
+.today-header{
+ padding:0 1px 13px;
 }
-.today-heading h1{
- font-size:34px;font-weight:500;letter-spacing:-.055em;
- text-transform:lowercase;line-height:1.14;margin:0;
+.today-heading{
+ display:flex;align-items:center;justify-content:space-between;
+ width:100%;min-width:0;gap:10px;
+}
+.today-heading-copy{
+ display:flex;flex:1;flex-direction:column;min-width:0;gap:3px;
+}
+.today-heading-copy h1{
+ margin:0;color:#111318;font-size:27px;font-weight:650;
+ letter-spacing:-.045em;line-height:1.15;
+ text-transform:none;
+}
+.today-heading-copy p{
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+ margin:0;color:#9095a3;font-size:12px;
+ font-weight:450;letter-spacing:0;line-height:1.35;
 }
 .today-filter-pill{
- position:relative;display:inline-flex;align-items:center;justify-content:flex-end;
- flex:0 0 auto;max-width:55%;height:36px;
- border-radius:999px;background:#e9eef9;color:#1c2433;
+ position:relative;display:inline-flex;align-items:center;
+ flex:0 0 151px;width:151px;max-width:55%;height:38px;
+ border-radius:999px;border:1px solid #f1f0f6;
+ background:#f8f8fc;color:#575b65;
 }
 .today-filter-pill select{
- width:100%;height:100%;min-height:36px;max-width:100%;
- border:0;outline-offset:2px;appearance:none;-webkit-appearance:none;
- padding:0 31px 0 15px;border-radius:999px;background:transparent;
- color:inherit;font-size:14px;font-weight:550;line-height:1;
+ display:block;width:100%;height:100%;min-height:36px;
+ appearance:none;-webkit-appearance:none;
+ padding:0 36px 0 14px;border:0;border-radius:999px;
+ background:transparent;color:inherit;
+ font-size:12px;font-weight:500;line-height:1.2;
  cursor:pointer;
 }
-.today-filter-pill svg{position:absolute;right:12px;pointer-events:none;flex:0 0 auto}
+.today-filter-pill svg{
+ position:absolute;right:13px;top:50%;transform:translateY(-50%);
+ pointer-events:none;color:#282c35;
+}
 @media(max-width:380px){
- .today-heading{gap:7px}
- .today-heading h1{font-size:30px}
- .today-filter-pill{height:34px;max-width:57%}
- .today-filter-pill select{min-height:34px;font-size:13px;padding-left:12px;padding-right:28px}
- .today-filter-pill svg{right:10px;width:13px;height:13px}
+ .today-heading{gap:8px}
+ .today-heading-copy h1{font-size:25px}
+ .today-heading-copy p{font-size:11.5px}
+ .today-filter-pill{flex-basis:139px;width:139px;max-width:54%;height:36px}
+ .today-filter-pill select{min-height:34px;padding-left:12px;padding-right:31px;font-size:11.5px}
+ .today-filter-pill svg{right:11px;width:15px;height:15px}
 }
 
 /* Compact cards inspired by Adaptly, with one readable action. */
