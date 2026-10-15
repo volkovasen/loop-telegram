@@ -36,7 +36,10 @@ test('Today filters distinguish active overdue completed, not past meetings', { 
   const html=renderToStaticMarkup(createElement(TodayFilterSelect,{value,onChange:()=>{}}));
   assert.match(html,/class="today-filter-pill"/);
   assert.match(html,/<select/);
-  assert.match(html,/lucide-chevron-down/);
+  assert.match(html,/lucide-calendar-check-2/);
+  assert.match(html,/<option value="active">Активные<\/option>/);
+  assert.match(html,/<option value="overdue">Просроченные<\/option>/);
+  assert.match(html,/<option value="done">Выполненные<\/option>/);
   assert.match(html,/value="active"/);
   assert.match(html,/value="overdue"/);
   assert.match(html,/value="done"/);
