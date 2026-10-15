@@ -41,7 +41,11 @@ const demoLoops: OpenLoop[] = [
   source:{messageId:-2,receivedAt:new Date().toISOString(),text:'[ТЕСТ] Давайте в субботу встретимся в кофейне? Напишите, кто сможет и когда удобно.'},createdAt:new Date().toISOString()},
  {id:'demo-groceries',type:'todo',kind:'request',nextAction:'do',status:'open',
   title:'Купить продукты к ужину',person:{name:'Маша'},space:'Дом',confidence:1,
-  source:{messageId:-3,receivedAt:new Date().toISOString(),text:'[ТЕСТ] Возьми, пожалуйста, помидоры, сыр, молоко и хлеб. Спасибо!'},createdAt:new Date().toISOString()}
+  source:{messageId:-3,receivedAt:new Date().toISOString(),text:'[ТЕСТ] Возьми, пожалуйста, помидоры, сыр, молоко и хлеб. Спасибо!'},createdAt:new Date().toISOString()},
+ {id:'demo-completed',type:'todo',kind:'request',nextAction:'do',status:'done',
+  title:'Забрать посылку',person:{name:'Кира'},space:'Личное',confidence:1,
+  completedAt:new Date().toISOString(),
+  source:{messageId:-4,receivedAt:new Date().toISOString(),text:'[ТЕСТ] Забери, пожалуйста, посылку из пункта выдачи.'},createdAt:new Date().toISOString()}
 ];
 
 function attentionText(count:number){if(count===1)return'1 вещь требует внимания';if(count>=2&&count<=4)return`${count} вещи требуют внимания`;return`${count} вещей требуют внимания`}
