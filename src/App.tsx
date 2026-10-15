@@ -7,6 +7,8 @@ import { ScheduleEditor, commitmentBadge } from './schedule-ui';
 import { ParticipantsEditor } from './participants-ui';
 import { LoopCard } from './loop-card';
 import { SpaceTabs } from './space-tabs';
+import { TodayFilterSelect } from './today-filter-select';
+import { filterTodayStatus, type TodayStatusFilter } from './today-filters';
 
 // Prefer the same origin. Ignore legacy localhost overrides that break on a phone.
 const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
@@ -50,6 +52,7 @@ function googleCalendarLink(loop:OpenLoop){if(loop.agreementStatus==='proposed'|
 export function App(){
  const demoMode=import.meta.env.DEV&&new URLSearchParams(window.location.search).has('demo');
  const[loops,setLoops]=useState<OpenLoop[]>([]),[spaceDefinitions,setSpaceDefinitions]=useState<SpaceDefinition[]>([]),[spaceSheet,setSpaceSheet]=useState(false),[actionError,setActionError]=useState(''),[connected,setConnected]=useState(false),[hasLoaded,setHasLoaded]=useState(false),[tab,setTab]=useState<Tab>('today'),[space,setSpace]=useState<SpaceFilter>('Все'),[selected,setSelected]=useState<OpenLoop|null>(null),[personName,setPersonName]=useState<string|null>(null),[memoryQuery,setMemoryQuery]=useState(''),[memoryResults,setMemoryResults]=useState<OpenLoop[]|null>(null),[memorySearching,setMemorySearching]=useState(false),[topNotice,setTopNotice]=useState('');
+ const [todayStatus,setTodayStatus]=useState<TodayStatusFilter>('active');
  async function loadLoops(){try{const res=await fetch(`${API_URL}/loops`,{headers:authHeaders()});if(!res.ok)throw new Error();setLoops(await res.json());setConnected(true)}catch{setConnected(false)}finally{setHasLoaded(true)}}
  async function loadSpaces(){try{const res=await fetch(`${API_URL}/spaces`,{headers:authHeaders()});if(!res.ok)throw new Error();setSpaceDefinitions(await res.json())}catch{setActionError('Не удалось загрузить Spaces. Проверь соединение.')}}
  useEffect(()=>{
@@ -96,9 +99,12 @@ export function App(){
  },[demoMode]);
  useEffect(()=>{const q=memoryQuery.trim();if(!q){setMemoryResults(null);setMemorySearching(false);return}const controller=new AbortController();const timer=setTimeout(async()=>{setMemorySearching(true);try{const res=await fetch(`${API_URL}/memory/search?q=${encodeURIComponent(q)}`,{signal:controller.signal,headers:authHeaders()});if(res.ok)setMemoryResults(await res.json())}catch(error){if((error as Error).name!=='AbortError')setMemoryResults([])}finally{if(!controller.signal.aborted)setMemorySearching(false)}},300);return()=>{clearTimeout(timer);controller.abort()}},[memoryQuery]);
 
- const attention=useMemo(()=>{const now=Date.now();return loops.filter(l=>l.type!=='saved'&&((l.status==='open'||l.status==='suggested')||(l.status==='snoozed'&&(l.snoozedUntil||l.dueAt)&&new Date(l.snoozedUntil||l.dueAt||'').getTime()<=now)))},[loops]);
- const visibleAttention=useMemo(()=>(demoMode?demoLoops:attention).filter(l=>space==='Все'||l.space===space),[attention,space,demoMode]);
- const history=useMemo(()=>loops.filter(l=>l.status==='done').sort((a,b)=>(b.completedAt??'').localeCompare(a.completedAt??'')),[loops]);
+ const attention=useMemo(()=>{const now=Date.now();return loops.filter(l=>l.type!=='saved'&&!l.mergedInto&&((l.status==='open'||l.status==='suggested')||(l.status==='snoozed'&&(l.snoozedUntil||l.dueAt)&&new Date(l.snoozedUntil||l.dueAt||'').getTime()<=now)))},[loops]);
+ const history=useMemo(()=>loops.filter(l=>l.status==='done'&&l.type!=='saved'&&!l.mergedInto).sort((a,b)=>(b.completedAt??'').localeCompare(a.completedAt??'')),[loops]);
+ const attentionSource=useMemo(()=>demoMode?demoLoops.filter(l=>l.status==='open'||l.status==='suggested'):attention,[demoMode,attention]);
+ const completedSource=useMemo(()=>demoMode?demoLoops.filter(l=>l.status==='done'):history,[demoMode,history]);
+ const statusAttention=useMemo(()=>filterTodayStatus(attentionSource,completedSource,todayStatus),[attentionSource,completedSource,todayStatus]);
+ const visibleAttention=useMemo(()=>statusAttention.filter(l=>space==='Все'||l.space===space),[statusAttention,space]);
  const snoozed=useMemo(()=>loops.filter(l=>l.status==='snoozed'&&!l.mergedInto && !(attention.some(active=>active.id===l.id))),[loops,attention]);
  const dismissed=useMemo(()=>loops.filter(l=>l.status==='dismissed'&&!l.mergedInto),[loops]);
  const allMemory=useMemo(()=>loops.filter(l=>l.type==='saved'&&l.status!=='dismissed'),[loops]);
@@ -201,9 +207,12 @@ export function App(){
  async function dismissPlan(loop:OpenLoop){if(loop.id.startsWith('demo-'))return;if(await patchLoop(loop.id,{status:'dismissed'}))setSelected(null)}
  const firstRun=hasLoaded&&connected&&loops.length===0&&!demoMode;
  const title=tab==='today'?'Сегодня':tab==='people'?'Люди':'Память';
- return <main className="shell">{topNotice&&<div className="loop-top-toast" role="status" aria-live="polite"><span className="loop-top-toast-check"><Check size={19}/></span><strong>{topNotice}</strong><button type="button" aria-label="Закрыть уведомление" onClick={()=>setTopNotice('')}><X size={19}/></button></div>}<header><div className="eyebrow">LOOP</div><h1>{title}</h1><p>{tab==='today'&&demoMode?'Демо · карточки для просмотра на телефоне':!hasLoaded?'Загружаем сообщения…':!connected?'LOOP не подключён':firstRun?'Твои важные сообщения будут здесь':tab==='today'?(attention.length?attentionText(attention.length):'Хвостов нет. Красиво.'):tab==='people'?`${people.length} человек в контексте`:`${allMemory.length} сохранено`}</p></header>
+ const todayHint=todayStatus==='overdue'? `Просроченных задач: ${statusAttention.length}`
+  :todayStatus==='done'? `Выполнено задач: ${statusAttention.length}`
+  :attentionSource.length?attentionText(attentionSource.length):'Хвостов нет. Красиво.';
+ return <main className="shell">{topNotice&&<div className="loop-top-toast" role="status" aria-live="polite"><span className="loop-top-toast-check"><Check size={19}/></span><strong>{topNotice}</strong><button type="button" aria-label="Закрыть уведомление" onClick={()=>setTopNotice('')}><X size={19}/></button></div>}<header><div className="eyebrow">LOOP</div><div className={tab==='today'?'today-heading':''}><h1>{title}</h1>{tab==='today'&&<TodayFilterSelect value={todayStatus} onChange={setTodayStatus}/>}</div><p>{tab==='today'&&demoMode?'Демо · карточки для просмотра на телефоне':!hasLoaded?'Загружаем сообщения…':!connected?'LOOP не подключён':firstRun?'Твои важные сообщения будут здесь':tab==='today'?todayHint:tab==='people'?`${people.length} человек в контексте`:`${allMemory.length} сохранено`}</p></header>
  {actionError&&<div className="action-error" role="alert">{actionError}<button type="button" onClick={()=>setActionError('')} aria-label="Скрыть ошибку"><X size={15}/></button></div>}
- {tab==='today'&&(hasLoaded&&!connected&&!loops.length&&!demoMode?<div className="empty"><strong>Не удалось загрузить сообщения</strong><span>Проверь соединение и открой LOOP через Telegram.</span></div>:<TodayView loops={visibleAttention} allLoops={demoMode?demoLoops:attention} history={history} snoozed={snoozed} dismissed={dismissed} space={space} spaces={spaceDefinitions} firstRun={firstRun} onSpace={setSpace} onManage={()=>setSpaceSheet(true)} onSelect={setSelected} onAssign={assignSpace}/>)} 
+ {tab==='today'&&(hasLoaded&&!connected&&!loops.length&&!demoMode?<div className="empty"><strong>Не удалось загрузить сообщения</strong><span>Проверь соединение и открой LOOP через Telegram.</span></div>:<TodayView loops={visibleAttention} allLoops={attentionSource} snoozed={snoozed} dismissed={dismissed} space={space} spaces={spaceDefinitions} firstRun={firstRun} onSpace={setSpace} onManage={()=>setSpaceSheet(true)} onSelect={setSelected} onAssign={assignSpace} statusFilter={todayStatus} />)} 
  {tab==='people'&&<PeopleView people={people} selectedName={personName} onSelectName={setPersonName} onSelectLoop={setSelected}/>} 
  {tab==='memory'&&<MemoryView query={memoryQuery} onQuery={setMemoryQuery} loops={memory} searching={memorySearching} onSelect={setSelected}/>} 
  <nav><button className={tab==='today'?'active':''} onClick={()=>setTab('today')}><Clock3/>Сегодня</button><button className={tab==='people'?'active':''} onClick={()=>setTab('people')}><Users/>Люди</button><button className={tab==='memory'?'active':''} onClick={()=>setTab('memory')}><Brain/>Память</button></nav>
@@ -225,9 +234,9 @@ function FirstRunEmpty(){
   <div className="first-run-privacy"><ShieldCheck size={17}/><span>LOOP видит только то, что ты ему пересылаешь.</span></div>
  </section>
 }
-function TodayView({loops,allLoops,history,snoozed,dismissed,space,spaces,firstRun,onSpace,onManage,onSelect,onAssign}:{loops:OpenLoop[];allLoops:OpenLoop[];history:OpenLoop[];snoozed:OpenLoop[];dismissed:OpenLoop[];space:SpaceFilter;spaces:SpaceDefinition[];firstRun:boolean;onSpace:(s:SpaceFilter)=>void;onManage:()=>void;onSelect:(l:OpenLoop)=>void;onAssign:(l:OpenLoop,name:string)=>void}){
- const unassigned=space==='Все'?loops.filter(loop=>!loop.space):[];
- const assigned=loops.filter(loop=>Boolean(loop.space)).sort((a,b)=>{
+function TodayView({loops,allLoops,snoozed,dismissed,space,spaces,firstRun,onSpace,onManage,onSelect,onAssign,statusFilter}:{loops:OpenLoop[];allLoops:OpenLoop[];snoozed:OpenLoop[];dismissed:OpenLoop[];space:SpaceFilter;spaces:SpaceDefinition[];firstRun:boolean;onSpace:(s:SpaceFilter)=>void;onManage:()=>void;onSelect:(l:OpenLoop)=>void;onAssign:(l:OpenLoop,name:string)=>void;statusFilter:TodayStatusFilter}){
+ const unassigned=statusFilter==='active'&&space==='Все'?loops.filter(loop=>!loop.space):[];
+ const assigned=(statusFilter==='active'?loops.filter(loop=>Boolean(loop.space)):[...loops]).sort((a,b)=>{
   const rank=(loop:OpenLoop)=>commitmentBadge(loop)==='Просрочено'||commitmentBadge(loop)==='Обещание задерживается'?0:commitmentBadge(loop)==='Событие прошло'?2:1;
   return rank(a)-rank(b);
  });
@@ -239,12 +248,11 @@ function TodayView({loops,allLoops,history,snoozed,dismissed,space,spaces,firstR
     <p className="unassigned-hint">LOOP не уверен, к какой теме относятся эти сообщения.</p>
     {unassigned.map(loop=><UnassignedCard key={loop.id} loop={loop} spaces={spaces} onAssign={onAssign} onOpen={onSelect}/>)}
    </section>}
-   {assigned.length>0&&<div className="loop-list-heading"><h2>Требуют внимания</h2><span>{assigned.length}</span></div>}
+   {assigned.length>0&&<div className="loop-list-heading"><h2>{statusFilter==='done'?'Выполненные':statusFilter==='overdue'?'Просроченные':'Требуют внимания'}</h2><span>{assigned.length}</span></div>}
    <section className="stack">{assigned.map(loop=><LoopCard key={loop.id} loop={loop} onOpen={()=>onSelect(loop)}/>)}</section>
-   {!loops.length&&<div className="empty"><Check size={26}/><strong>{space==='Все'?'Сейчас ничего не требует внимания':'В этом разделе пусто'}</strong><span>{space==='Все'?'Все задачи выполнены или отложены. Новые появятся после пересылки боту.':'Попробуй выбрать «Все», чтобы увидеть остальные задачи.'}</span></div>}
-   {!!snoozed.length&&space==='Все'&&<section className="history-block"><div className="section-title">Отложено · {snoozed.length}</div>{snoozed.slice(0,8).map(loop=><button key={loop.id} className="history-row" onClick={()=>onSelect(loop)}><span className="history-check">◷</span><span><strong>{loop.title}</strong><small>Вернуть раньше · {formatDate(loop.snoozedUntil||loop.dueAt)}</small></span><ChevronRight size={16}/></button>)}</section>}
-   {!!history.length&&space==='Все'&&<section className="history-block"><div className="section-title">Выполнено · {history.length}</div>{history.slice(0,8).map(loop=><button key={loop.id} className="history-row" onClick={()=>onSelect(loop)}><span className="history-check">✓</span><span><strong>{loop.title}</strong><small>{loop.person?.name??loop.space??'LOOP'} · {formatDate(loop.completedAt)}</small></span><ChevronRight size={16}/></button>)}</section>}
-   {!!dismissed.length&&space==='Все'&&<section className="history-block"><div className="section-title">Неактуально · {dismissed.length}</div>{dismissed.slice(0,8).map(loop=><button key={loop.id} className="history-row" onClick={()=>onSelect(loop)}><span className="history-check">↩</span><span><strong>{loop.title}</strong><small>Можно вернуть в работу</small></span><ChevronRight size={16}/></button>)}</section>}
+   {!loops.length&&<div className="empty"><Check size={26}/><strong>{statusFilter==='done'?'Выполненных задач пока нет':statusFilter==='overdue'?'Просроченных задач нет':space==='Все'?'Сейчас ничего не требует внимания':'В этом разделе пусто'}</strong><span>{space!=='Все'?'Попробуй выбрать «Все», чтобы увидеть остальные задачи.':statusFilter==='done'?'Когда завершишь задачу, она появится здесь.':statusFilter==='overdue'?'Все сроки пока в порядке.':'Все задачи выполнены или отложены. Новые появятся после пересылки боту.'}</span></div>}
+   {!!snoozed.length&&space==='Все'&&statusFilter==='active'&&<section className="history-block"><div className="section-title">Отложено · {snoozed.length}</div>{snoozed.slice(0,8).map(loop=><button key={loop.id} className="history-row" onClick={()=>onSelect(loop)}><span className="history-check">◷</span><span><strong>{loop.title}</strong><small>Вернуть раньше · {formatDate(loop.snoozedUntil||loop.dueAt)}</small></span><ChevronRight size={16}/></button>)}</section>}
+   {!!dismissed.length&&space==='Все'&&statusFilter==='active'&&<section className="history-block"><div className="section-title">Неактуально · {dismissed.length}</div>{dismissed.slice(0,8).map(loop=><button key={loop.id} className="history-row" onClick={()=>onSelect(loop)}><span className="history-check">↩</span><span><strong>{loop.title}</strong><small>Можно вернуть в работу</small></span><ChevronRight size={16}/></button>)}</section>}
   </>}
  </>;
 }
