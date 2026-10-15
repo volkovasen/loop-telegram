@@ -157,6 +157,7 @@ header p{color:#929aab;font-size:13px;line-height:1.45}
   overflow-wrap:anywhere;
 }
 .loop-task-pill--type{background:var(--loop-blue);color:white}
+.loop-task-pill--done{background:#e9f5eb;color:#387744}
 .loop-task-pill--space{background:var(--loop-blue-wash);color:#5077e3}
 .loop-task-pill--late{background:#ffebed;color:#d7445b}
 .loop-task-dots{color:#c5cad4;letter-spacing:1px;font-size:20px;font-weight:900;line-height:1.1}
