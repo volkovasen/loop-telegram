@@ -31,7 +31,7 @@ test('Custom Space strip matches supplied light mockup and keeps attention count
  assert.match(html,/role="tab" aria-selected="false" class="space-strip__tab"><span class="space-strip__name">Все<\/span><\/button>/);
  assert.equal((html.match(/role="tab"/g)??[]).length,5,'All plus existing four Spaces');
  assert.deepEqual([...html.matchAll(/class="space-strip__name">([^<]+)/g)].map(m=>m[1]),[
-  'Дом','Личное','Работа','Путешествия'
+  'Все','Дом','Личное','Работа','Путешествия'
  ]);
  assert.match(html,/aria-selected="true"[^>]*class="space-strip__tab space-strip__tab--active"/);
  assert.match(html,/<span class="space-strip__count" aria-label="2 открытых задач">2<\/span>/);
