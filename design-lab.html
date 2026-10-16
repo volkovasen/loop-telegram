@@ -289,7 +289,7 @@
         render();
       });
       document.addEventListener('change',function(e){
-        if(e.target.id==='statusSelect'){state.status=e.target.value;render();}
+        if(e.target.id==='statusSelect'){state.status=e.target.value;state.selectedDate=state.status==='active'?dateKey(todayDate):null;state.calendarOpen=false;render();}
       });
       render();
     })();
