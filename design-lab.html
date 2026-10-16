@@ -100,6 +100,51 @@
     }
     @media(max-width:400px){.app-scroll{padding:21px 14px}.app-title h1{font-size:20px}.status-select{width:132px}.status-select select{font-size:10px;padding-left:10px}.folder{font-size:12px;padding:0 9px}}
     @media(prefers-reduced-motion:reduce){.device,.task{transition:none}}
+
+    /* Consistent type scale and aligned toolbar controls. */
+    .device{--loop-heading:23px;--loop-card-title:15px;--loop-body:13px;--loop-meta:11px;--loop-control:36px}
+    .app-header{gap:8px;min-height:42px;align-items:center;margin:0 1px 13px}
+    .app-title h1{font-size:var(--loop-heading);line-height:1.1;letter-spacing:-.043em;font-weight:730}
+    .app-title p{font-size:var(--loop-meta)}
+    .toolbar-actions{display:flex;align-items:center;gap:8px;flex:none}
+    .status-select{height:var(--loop-control);width:130px;max-width:none;background:#fff;border-color:#e4e9f3}
+    .status-select select{min-height:34px;padding:0 26px 0 12px;font-size:var(--loop-body);font-weight:520;text-transform:lowercase;color:#272d38}
+    .status-select svg{right:9px;color:#9ca5b4;width:16px;height:16px}
+    .calendar-trigger{display:grid;place-items:center;width:var(--loop-control);height:var(--loop-control);flex:none;padding:0;border:1px solid #e4e9f3;background:white;border-radius:50%;color:#29313f}
+    .calendar-trigger svg{width:19px;height:19px}
+    .calendar-trigger--open{border-color:#9ab1ef;background:#eef3ff;color:#5575c7}
+    .folders{margin-bottom:17px}
+    .folder{font-size:var(--loop-body)}
+    .task h3{font-size:var(--loop-card-title)}
+    .task-foot,.task-date{font-size:var(--loop-meta)}
+    .calendar-panel{margin:0 0 15px;padding:15px;border:1px solid #e6eaf2;background:#fff;border-radius:20px;box-shadow:0 10px 28px #38476510}
+    .calendar-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:15px;gap:8px}
+    .calendar-heading strong{font-size:var(--loop-body);font-weight:690;color:#242b36;text-transform:capitalize}
+    .calendar-switch{display:flex;align-items:center;gap:4px}
+    .calendar-switch button{width:28px;height:28px;display:grid;place-items:center;border:0;background:#f5f7fb;border-radius:50%;color:#667185}
+    .calendar-weekdays,.calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+    .calendar-weekdays{margin-bottom:7px}
+    .calendar-weekdays span{font-size:10px;color:#9fa7b5;font-weight:590;text-align:center}
+    .calendar-day{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:37px;padding:4px 0;background:transparent;border:1px solid transparent;border-radius:11px;color:#7d8797;font-size:12px;font-weight:480}
+    .calendar-day.has-tasks{font-weight:720;color:#253044}
+    .calendar-day.is-today{border-color:#d8e1f3}
+    .calendar-day.is-selected{background:#273448;color:#fff;border-color:#273448}
+    .calendar-dot{display:block;width:4px;height:4px;border-radius:50%;background:#6586ed}
+    .calendar-day.is-selected .calendar-dot{background:#fff}
+    .calendar-hint{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:13px;padding-top:12px;border-top:1px solid #f0f2f7;color:#929baa;font-size:10px}
+    .calendar-hint span{display:flex;align-items:center;gap:7px}
+    .calendar-hint-dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:#6586ed}
+    .calendar-hint button{padding:4px 0 4px 9px;border:0;background:none;color:#536b9c;font-weight:650;font-size:11px}
+    .date-focus{display:flex;align-items:center;justify-content:space-between;margin:-1px 2px 12px;color:#3e4656;font-size:var(--loop-body);font-weight:640}
+    .date-focus button{background:none;border:0;color:#7e8ca5;font-size:var(--loop-meta);font-weight:570}
+    @media(max-width:400px){
+      .app-title h1{font-size:22px}
+      .status-select{width:119px}
+      .status-select select{font-size:12px;padding-left:11px}
+      .toolbar-actions{gap:6px}
+      .calendar-trigger{width:34px;height:34px}
+      .folder{font-size:12px}
+    }
   </style>
 </head>
 <body>
@@ -146,13 +191,19 @@
   <script>
     (function(){
       'use strict';
-      const state={width:390,subtitle:'source',status:'active',space:'all',tab:'today',sheet:null};
+      const todayDate=new Date();
+      const dateKey=(date)=>[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');
+      const addDays=(days)=>dateKey(new Date(todayDate.getFullYear(),todayDate.getMonth(),todayDate.getDate()+days));
+      const fmtDate=(key)=>{const d=new Date(key+'T12:00:00');const diff=Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate())-new Date(todayDate.getFullYear(),todayDate.getMonth(),todayDate.getDate()))/86400000);return diff===0?'Сегодня':diff===1?'Завтра':diff===-1?'Вчера':new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short'}).format(d);};
+      const state={width:390,subtitle:'none',status:'active',space:'all',tab:'today',sheet:null,calendarOpen:false,selectedDate:null,month:new Date(todayDate.getFullYear(),todayDate.getMonth(),1)};
       const items=[
-        {id:'1',title:'Забрать документы',space:'личное',kind:'Задача',date:'Сегодня, 18:00',person:'Маша',status:'active'},
-        {id:'2',title:'Уточнить время встречи',space:'работа',kind:'Ответить',date:'Сегодня',person:'Саша',status:'active'},
-        {id:'3',title:'Купить продукты к ужину',space:'дом',kind:'Задача',date:'Завтра',person:'Арина',status:'active'},
-        {id:'4',title:'Подтвердить бронь',space:'личное',kind:'Задача',date:'Вчера',person:'Кира',status:'overdue'},
-        {id:'5',title:'Отправить адрес',space:'дом',kind:'Ответить',date:'Вчера',person:'Маша',status:'done'}
+        {id:'1',title:'Забрать документы',space:'личное',kind:'Задача',day:addDays(0),time:'18:00',person:'Маша',status:'active'},
+        {id:'2',title:'Уточнить время встречи',space:'работа',kind:'Ответить',day:addDays(0),person:'Саша',status:'active'},
+        {id:'3',title:'Купить продукты к ужину',space:'дом',kind:'Задача',day:addDays(1),person:'Арина',status:'active'},
+        {id:'4',title:'Подтвердить бронь',space:'личное',kind:'Задача',day:addDays(-1),person:'Кира',status:'overdue'},
+        {id:'5',title:'Отправить адрес',space:'дом',kind:'Ответить',day:addDays(-1),person:'Маша',status:'done'},
+        {id:'6',title:'Записаться на встречу',space:'личное',kind:'Задача',day:addDays(4),person:'Арина',status:'active'},
+        {id:'7',title:'Подготовить документы к поездке',space:'работа',kind:'Задача',day:addDays(10),person:'Саша',status:'active'}
       ];
       const icons={
         calendar:'<rect x="3" y="4" width="18" height="17" rx="3"/><path d="M8 2v4M16 2v4M3 9h18M9 16l2 2 4-4"/>',
@@ -162,14 +213,33 @@
         plus:'<path d="M12 5v14M5 12h14"/>',
         arrow:'<path d="m9 18 6-6-6-6"/>',
         search:'<circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/>',
-        check:'<path d="M5 12l4 4L19 6"/>'
+        check:'<path d="M5 12l4 4L19 6"/>',
+        chevron:'<path d="m9 18 6-6-6-6"/>',
+        left:'<path d="m15 18-6-6 6-6"/>'
       };
       function icon(name,size){return '<svg class="icon" width="'+(size||18)+'" height="'+(size||18)+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+icons[name]+'</svg>';}
       const app=document.getElementById('appContent'),nav=document.getElementById('appNav'),device=document.getElementById('device'),sheet=document.getElementById('appSheet');
       function subtitle(){return state.subtitle==='none'?'':state.subtitle==='task'?'Задачи из Telegram':'LOOP · из Telegram';}
       function header(){
         const title=state.tab==='today'?'Сегодня':state.tab==='people'?'Люди':'Память';
-        return '<header class="app-header"><div class="app-title"><h1>'+title+'</h1>'+(state.tab==='today'&&subtitle()?'<p>'+subtitle()+'</p>':'')+'</div>'+(state.tab==='today'?'<label class="status-select"><select id="statusSelect" aria-label="Статус задач"><option value="active"'+(state.status==='active'?' selected':'')+'>Активные</option><option value="overdue"'+(state.status==='overdue'?' selected':'')+'>Просроченные</option><option value="done"'+(state.status==='done'?' selected':'')+'>Выполненные</option></select>'+icon('calendar',16)+'</label>':'')+'</header>';
+        return '<header class="app-header"><div class="app-title"><h1>'+title+'</h1>'+(state.tab==='today'&&subtitle()?'<p>'+subtitle()+'</p>':'')+'</div>'+(state.tab==='today'?'<div class="toolbar-actions"><label class="status-select"><select id="statusSelect" aria-label="Статус задач"><option value="active"'+(state.status==='active'?' selected':'')+'>Активные</option><option value="overdue"'+(state.status==='overdue'?' selected':'')+'>Просроченные</option><option value="done"'+(state.status==='done'?' selected':'')+'>Выполненные</option></select>'+icon('chevron',16)+'</label><button type="button" class="calendar-trigger'+(state.calendarOpen?' calendar-trigger--open':'')+'" data-calendar-toggle="true" aria-label="Выбрать дату" aria-expanded="'+state.calendarOpen+'">'+icon('calendar',19)+'</button></div>':'')+'</header>';
+      }
+      function calendarView(){
+        const first=new Date(state.month.getFullYear(),state.month.getMonth(),1);
+        const label=new Intl.DateTimeFormat('ru-RU',{month:'long',year:'numeric'}).format(first);
+        const offset=(first.getDay()+6)%7;
+        const days=new Date(first.getFullYear(),first.getMonth()+1,0).getDate();
+        const weeks=['пн','вт','ср','чт','пт','сб','вс'];
+        const eligible=items.filter(x=>x.status===state.status&&(state.space==='all'||x.space===state.space));
+        const byDay={};eligible.forEach(x=>{byDay[x.day]=(byDay[x.day]||0)+1;});
+        const cells=[];
+        for(let i=0;i<offset;i++)cells.push('<span class="calendar-blank"></span>');
+        for(let n=1;n<=days;n++){
+          const key=dateKey(new Date(first.getFullYear(),first.getMonth(),n));
+          const count=byDay[key]||0, isToday=key===dateKey(todayDate),selected=key===state.selectedDate;
+          cells.push('<button class="calendar-day'+(count?' has-tasks':'')+(isToday?' is-today':'')+(selected?' is-selected':'')+'" data-calendar-day="'+key+'" aria-label="'+n+' '+label+', задач: '+count+'" aria-pressed="'+selected+'"><span>'+n+'</span>'+(count?'<i class="calendar-dot" aria-hidden="true"></i>':'')+'</button>');
+        }
+        return '<section class="calendar-panel" aria-label="Календарь задач"><div class="calendar-heading"><strong>'+label+'</strong><div class="calendar-switch"><button data-month="-1" aria-label="Предыдущий месяц">'+icon('left',16)+'</button><button data-month="1" aria-label="Следующий месяц">'+icon('chevron',16)+'</button></div></div><div class="calendar-weekdays">'+weeks.map(d=>'<span>'+d+'</span>').join('')+'</div><div class="calendar-grid">'+cells.join('')+'</div><div class="calendar-hint"><span><i class="calendar-hint-dot"></i>Есть задачи на дату</span><button data-date-all="true">Все даты</button></div></section>';
       }
       function folders(){
         const names=[['all','все'],['дом','дом'],['личное','личное'],['работа','работа']];
@@ -177,12 +247,12 @@
         return '<div class="folders"><button class="folder-plus" data-open="folders" aria-label="Добавить папку">'+icon('plus',17)+'</button><div class="folder-list">'+names.map(x=>'<button class="folder'+(state.space===x[0]?' selected':'')+'" data-space="'+x[0]+'">'+x[1]+(x[0]!=='all'&&counts[x[0]]?'<span class="count">'+counts[x[0]]+'</span>':'')+'</button>').join('')+'</div></div>';
       }
       function taskCard(x){
-        return '<button class="task" data-task="'+x.id+'"><div class="task-top"><span class="task-type">'+x.kind+'</span><span class="task-date">'+icon('clock',13)+x.date+'</span></div><h3>'+x.title+'</h3><div class="task-foot"><span class="person"><span class="avatar">'+x.person[0]+'</span>Из чата с '+x.person+'</span>'+icon('arrow',15)+'</div></button>';
+        return '<button class="task" data-task="'+x.id+'"><div class="task-top"><span class="task-type">'+x.kind+'</span><span class="task-date">'+icon('clock',13)+fmtDate(x.day)+(x.time?', '+x.time:'')+'</span></div><h3>'+x.title+'</h3><div class="task-foot"><span class="person"><span class="avatar">'+x.person[0]+'</span>Из чата с '+x.person+'</span>'+icon('arrow',15)+'</div></button>';
       }
       function today(){
-        const filtered=items.filter(x=>x.status===state.status&&(state.space==='all'||x.space===state.space));
-        const title=state.status==='done'?'Выполненные':state.status==='overdue'?'Просроченные':'Требуют внимания';
-        return folders()+'<div class="section-heading"><strong>'+title+'</strong><small>'+filtered.length+'</small></div>'+(filtered.length?'<div class="task-stack">'+filtered.map(taskCard).join('')+'</div>':'<div class="task-empty">'+icon('check',24)+'<strong>Пока пусто</strong>Здесь появятся соответствующие задачи из чатов.</div>');
+        const filtered=items.filter(x=>x.status===state.status&&(state.space==='all'||x.space===state.space)&&(!state.selectedDate||x.day===state.selectedDate));
+        const selected=state.selectedDate?'<div class="date-focus"><span>'+new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'long'}).format(new Date(state.selectedDate+'T12:00:00'))+'</span><button data-date-all="true" aria-label="Сбросить выбранную дату">Все даты ×</button></div>':'';
+        return folders()+selected+(filtered.length?'<div class="task-stack">'+filtered.map(taskCard).join('')+'</div>':'<div class="task-empty">'+icon('check',24)+'<strong>На эту дату задач нет</strong>Выбери другой день или открой все даты.</div>');
       }
       function people(){return '<div class="section-heading"><strong>Из переписок</strong><small>4</small></div>'+[['Арина','2 задачи'],['Маша','1 задача'],['Саша','1 задача'],['Кира','1 задача']].map((x,i)=>'<div class="list-person"><span class="avatar" style="background:'+(i%2?'#e5edf9':'#e9e9fa')+'">'+x[0][0]+'</span><div><strong>'+x[0]+'</strong><small>'+x[1]+'</small></div></div>').join('');}
       function memory(){return '<label class="memory-search">'+icon('search',17)+'<input type="text" placeholder="Поиск по сохранённому" aria-label="Поиск по сохранённому"></label><div class="memory-card"><small>Сохранено · Личное</small><strong>Интересное место для ужина</strong><p>Из пересланного сообщения. Это только пример оформления.</p></div>';}
@@ -197,21 +267,25 @@
       function render(){
         device.style.width=state.width+'px';device.classList.toggle('is-phone',state.width!==520);
         document.getElementById('stageLabel').textContent=state.width+' px · предпросмотр '+(state.width===520?'широкого экрана':'мобильного экрана');
-        app.innerHTML=header()+(state.tab==='today'?today():state.tab==='people'?people():memory());
+        app.innerHTML=header()+(state.tab==='today'&&state.calendarOpen?calendarView():'')+(state.tab==='today'?today():state.tab==='people'?people():memory());
         renderNav();renderSheet();
         document.querySelectorAll('[data-width]').forEach(x=>x.classList.toggle('active',Number(x.dataset.width)===state.width));
         document.querySelectorAll('[data-subtitle]').forEach(x=>x.classList.toggle('active',x.dataset.subtitle===state.subtitle));
       }
       document.addEventListener('click',function(e){
-        const target=e.target.closest('[data-width],[data-subtitle],[data-tab],[data-space],[data-task],[data-open],[data-close]');
+        const target=e.target.closest('[data-width],[data-subtitle],[data-tab],[data-space],[data-task],[data-open],[data-close],[data-calendar-toggle],[data-calendar-day],[data-month],[data-date-all]');
         if(!target)return;
         if(target.dataset.width){state.width=Number(target.dataset.width);}
         if(target.dataset.subtitle){state.subtitle=target.dataset.subtitle;}
-        if(target.dataset.tab){state.tab=target.dataset.tab;state.sheet=null;}
+        if(target.dataset.tab){state.tab=target.dataset.tab;state.sheet=null;state.calendarOpen=false;}
         if(target.dataset.space){state.space=target.dataset.space;}
         if(target.dataset.task){state.sheet=target.dataset.task;}
         if(target.dataset.open){state.sheet='folders';}
         if(target.dataset.close){state.sheet=null;}
+        if(target.dataset.calendarToggle){state.calendarOpen=!state.calendarOpen;state.month=state.selectedDate?new Date(state.selectedDate+'T12:00:00'):new Date(todayDate.getFullYear(),todayDate.getMonth(),1);}
+        if(target.dataset.month){state.month=new Date(state.month.getFullYear(),state.month.getMonth()+Number(target.dataset.month),1);}
+        if(target.dataset.calendarDay){state.selectedDate=target.dataset.calendarDay;state.calendarOpen=false;}
+        if(target.dataset.dateAll){state.selectedDate=null;state.calendarOpen=false;}
         render();
       });
       document.addEventListener('change',function(e){
