@@ -195,7 +195,7 @@
       const dateKey=(date)=>[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');
       const addDays=(days)=>dateKey(new Date(todayDate.getFullYear(),todayDate.getMonth(),todayDate.getDate()+days));
       const fmtDate=(key)=>{const d=new Date(key+'T12:00:00');const diff=Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate())-new Date(todayDate.getFullYear(),todayDate.getMonth(),todayDate.getDate()))/86400000);return diff===0?'Сегодня':diff===1?'Завтра':diff===-1?'Вчера':new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short'}).format(d);};
-      const state={width:390,subtitle:'none',status:'active',space:'all',tab:'today',sheet:null,calendarOpen:false,selectedDate:null,month:new Date(todayDate.getFullYear(),todayDate.getMonth(),1)};
+      const state={width:390,subtitle:'none',status:'active',space:'all',tab:'today',sheet:null,calendarOpen:false,selectedDate:dateKey(todayDate),month:new Date(todayDate.getFullYear(),todayDate.getMonth(),1)};
       const items=[
         {id:'1',title:'Забрать документы',space:'личное',kind:'Задача',day:addDays(0),time:'18:00',person:'Маша',status:'active'},
         {id:'2',title:'Уточнить время встречи',space:'работа',kind:'Ответить',day:addDays(0),person:'Саша',status:'active'},
@@ -251,7 +251,7 @@
       }
       function today(){
         const filtered=items.filter(x=>x.status===state.status&&(state.space==='all'||x.space===state.space)&&(!state.selectedDate||x.day===state.selectedDate));
-        const selected=state.selectedDate?'<div class="date-focus"><span>'+new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'long'}).format(new Date(state.selectedDate+'T12:00:00'))+'</span><button data-date-all="true" aria-label="Сбросить выбранную дату">Все даты ×</button></div>':'';
+        const selected=state.selectedDate&&state.selectedDate!==dateKey(todayDate)?'<div class="date-focus"><span>'+new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'long'}).format(new Date(state.selectedDate+'T12:00:00'))+'</span><button data-date-all="true" aria-label="Сбросить выбранную дату">Все даты ×</button></div>':'';
         return folders()+selected+(filtered.length?'<div class="task-stack">'+filtered.map(taskCard).join('')+'</div>':'<div class="task-empty">'+icon('check',24)+'<strong>На эту дату задач нет</strong>Выбери другой день или открой все даты.</div>');
       }
       function people(){return '<div class="section-heading"><strong>Из переписок</strong><small>4</small></div>'+[['Арина','2 задачи'],['Маша','1 задача'],['Саша','1 задача'],['Кира','1 задача']].map((x,i)=>'<div class="list-person"><span class="avatar" style="background:'+(i%2?'#e5edf9':'#e9e9fa')+'">'+x[0][0]+'</span><div><strong>'+x[0]+'</strong><small>'+x[1]+'</small></div></div>').join('');}
